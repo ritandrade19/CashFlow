@@ -1,10 +1,18 @@
-
 <!DOCTYPE html>
 <html lang="pt-PT">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Finanças Pessoais</title>
+<title>CashFlow</title>
+
+<!-- PWA -->
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#00c896">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="CashFlow">
+<link rel="apple-touch-icon" href="icon-192.png">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <style>
@@ -445,14 +453,73 @@
     transition: all .3s ease; pointer-events: none;
   }
   .inactivity-banner.visible { transform: translateY(0); opacity: 1; }
+
+  /* ── PROFILE SELECTOR ── */
+  #profileScreen {
+    position: fixed; inset: 0; z-index: 9998;
+    background: var(--bg);
+    display: flex; align-items: center; justify-content: center; flex-direction: column;
+  }
+  #profileScreen.hidden { display: none; }
+
+  .profile-card-wrap {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 20px; padding: 40px 36px;
+    width: 100%; max-width: 420px;
+    box-shadow: 0 24px 64px rgba(0,0,0,.5);
+    text-align: center;
+  }
+  .profile-card-wrap h2 { font-size: 20px; font-weight: 700; margin-bottom: 6px; }
+  .profile-card-wrap p  { font-size: 13px; color: var(--text-muted); margin-bottom: 32px; }
+
+  .profile-list { display: flex; flex-direction: column; gap: 10px; }
+  .profile-btn {
+    display: flex; align-items: center; gap: 14px;
+    padding: 14px 18px; border-radius: var(--radius);
+    background: var(--surface2); border: 1px solid var(--border);
+    cursor: pointer; transition: all var(--transition); text-align: left;
+  }
+  .profile-btn:hover { border-color: var(--accent); background: var(--accent-dim); }
+  .profile-avatar {
+    width: 44px; height: 44px; border-radius: 50%;
+    background: linear-gradient(135deg, var(--accent), #00a87a);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px; font-weight: 700; color: #0d1117; flex-shrink: 0;
+  }
+  .profile-avatar.purple { background: linear-gradient(135deg, #bc8cff, #7c3aed); }
+  .profile-name { font-weight: 600; font-size: 15px; }
+  .profile-role { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+
+  /* Active profile badge in sidebar */
+  .active-profile-badge {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 12px; margin: 0 10px 8px;
+    background: var(--accent-dim); border: 1px solid rgba(0,200,150,.2);
+    border-radius: var(--radius-sm); font-size: 12px; font-weight: 600; color: var(--accent);
+    cursor: pointer;
+  }
+  .active-profile-badge:hover { background: rgba(0,200,150,.2); }
 </style>
 </head>
 <body>
+
+<!-- PROFILE SELECTOR -->
+<div id="profileScreen">
+  <div class="profile-card-wrap">
+    <div class="pin-logo" style="margin:0 auto 20px">📊</div>
+    <h2>CashFlow</h2>
+    <p>Seleciona o teu perfil para entrar</p>
+    <div class="profile-list" id="profileList">
+      <!-- rendered dynamically -->
+    </div>
+  </div>
+</div>
+
 <!-- PIN SCREEN -->
-<div id="pinScreen">
+<div id="pinScreen" class="hidden">
   <div class="pin-card">
-    <div class="pin-logo">💰</div>
-    <div class="pin-title" id="pinTitle">Bem-vinda, Rita</div>
+    <div class="pin-logo" id="pinAvatar">📊</div>
+    <div class="pin-title" id="pinTitle">Bem-vinda</div>
     <div class="pin-subtitle" id="pinSubtitle">Introduz o teu PIN de 4 dígitos</div>
 
     <div class="pin-dots" id="pinDots">
@@ -474,17 +541,15 @@
       <div class="pin-key" onclick="pinPress('7')"><span class="pin-key-num">7</span><span class="pin-key-sub">PQRS</span></div>
       <div class="pin-key" onclick="pinPress('8')"><span class="pin-key-num">8</span><span class="pin-key-sub">TUV</span></div>
       <div class="pin-key" onclick="pinPress('9')"><span class="pin-key-num">9</span><span class="pin-key-sub">WXYZ</span></div>
-      <div class="pin-key" onclick="pinClear()" style="opacity:.6">
-        <span class="pin-key-icon">⌫</span>
-      </div>
+      <div class="pin-key" onclick="pinClear()" style="opacity:.6"><span class="pin-key-icon">⌫</span></div>
       <div class="pin-key" onclick="pinPress('0')"><span class="pin-key-num">0</span></div>
-      <div class="pin-key" onclick="pinClear()" style="opacity:.6">
-        <span style="font-size:12px;font-weight:600;color:var(--text-muted)">LIMPAR</span>
+      <div class="pin-key" onclick="backToProfiles()" style="opacity:.7">
+        <span style="font-size:11px;font-weight:600;color:var(--text-muted)">← VOLTAR</span>
       </div>
     </div>
 
     <div class="pin-setup-hint" id="pinSetupHint" style="display:none">
-      🔒 Primeira vez? Define agora o teu PIN de 4 dígitos.<br>Vai ser pedido sempre que abrires a app.
+      🔒 Define agora o teu PIN de 4 dígitos.<br>Vai ser pedido sempre que entrares.
     </div>
   </div>
 </div>
@@ -498,11 +563,16 @@
   <!-- SIDEBAR -->
   <nav class="sidebar">
     <div class="sidebar-logo">
-      <div class="logo-icon">💰</div>
+      <div class="logo-icon">📊</div>
       <div>
-        <div class="logo-text">FinançasPT</div>
+        <div class="logo-text">CashFlow</div>
         <div class="logo-sub">Gestão Pessoal</div>
       </div>
+    </div>
+    <div class="active-profile-badge" onclick="switchProfile()" title="Trocar perfil">
+      <span id="sidebarProfileAvatar" style="font-size:16px;font-weight:700">RA</span>
+      <span id="sidebarProfileName" style="flex:1">Rita Andrade</span>
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
     </div>
     <div class="sidebar-nav">
       <div class="nav-item active" data-section="dashboard">
@@ -1048,6 +1118,58 @@
           </div>
 
         </div>
+
+        <!-- Gestão de Utilizadores — só admin -->
+        <div id="userManagementSection" style="display:none;margin-top:20px">
+          <div class="card">
+            <div class="section-header" style="margin-bottom:16px">
+              <h2>👥 Gestão de Utilizadores</h2>
+              <span style="font-size:11px;padding:3px 8px;border-radius:12px;background:rgba(0,200,150,.15);color:var(--accent);font-weight:600">Administradora</span>
+            </div>
+
+            <!-- Existing users -->
+            <div id="userList" style="margin-bottom:20px"></div>
+
+            <div style="border-top:1px solid var(--border);padding-top:20px">
+              <div style="font-size:14px;font-weight:600;margin-bottom:14px">Criar novo utilizador</div>
+              <div class="form-grid" style="gap:12px">
+                <div class="form-group">
+                  <label class="form-label">Nome completo</label>
+                  <input type="text" id="newUserName" class="form-control" placeholder="Ex: João Silva">
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Função</label>
+                  <select id="newUserRole" class="form-control">
+                    <option value="Utilizador">Utilizador</option>
+                    <option value="Administrador">Administrador</option>
+                  </select>
+                </div>
+              </div>
+              <div class="form-grid" style="gap:12px;margin-top:12px">
+                <div class="form-group">
+                  <label class="form-label">Cor do perfil</label>
+                  <select id="newUserColor" class="form-control">
+                    <option value="linear-gradient(135deg,#58a6ff,#1d4ed8)">🔵 Azul</option>
+                    <option value="linear-gradient(135deg,#f85149,#b91c1c)">🔴 Vermelho</option>
+                    <option value="linear-gradient(135deg,#ffa657,#c2410c)">🟠 Laranja</option>
+                    <option value="linear-gradient(135deg,#d29922,#92400e)">🟡 Dourado</option>
+                    <option value="linear-gradient(135deg,#bc8cff,#7c3aed)">🟣 Roxo</option>
+                    <option value="linear-gradient(135deg,#ff6eb4,#be185d)">🩷 Rosa</option>
+                  </select>
+                </div>
+                <div style="display:flex;align-items:flex-end">
+                  <button class="btn btn-primary" style="width:100%" onclick="createUser()">
+                    + Criar utilizador
+                  </button>
+                </div>
+              </div>
+              <p style="font-size:12px;color:var(--text-muted);margin-top:10px;line-height:1.5">
+                ℹ️ O novo utilizador define o seu próprio PIN na primeira vez que entrar.
+              </p>
+            </div>
+          </div>
+        </div>
+
       </div>
 
     </div>
@@ -1170,6 +1292,22 @@ function uid() { return Date.now().toString(36) + Math.random().toString(36).sli
 
 const GS_URL = 'https://script.google.com/macros/s/AKfycbxrq1WLbqU7FqL3M0Q0LuXkWEUG8jI7Nh-sU71yquEneJ9PccQEHpxaTkURU0wlQDDt/exec';
 
+// ── PROFILES ──────────────────────────────────────────────────────────────────
+
+const PROFILES_DEFAULT = {
+  rita:    { name: 'Rita Andrade',   initials: 'RA', role: 'Administradora', color: 'linear-gradient(135deg,#00c896,#00a87a)', prefix: 'rita',    isAdmin: true },
+  micaela: { name: 'Micaela Sousa', initials: 'MS', role: 'Utilizadora',    color: 'linear-gradient(135deg,#bc8cff,#7c3aed)', prefix: 'micaela', isAdmin: false }
+};
+
+function loadProfiles() {
+  const stored = localStorage.getItem('cf_profiles');
+  return stored ? JSON.parse(stored) : { ...PROFILES_DEFAULT };
+}
+function saveProfiles(p) { localStorage.setItem('cf_profiles', JSON.stringify(p)); }
+
+let PROFILES = loadProfiles();
+let activeProfile = null;
+
 let txs           = [];
 let budgets       = {};
 let saldosIniciais= {};
@@ -1201,28 +1339,26 @@ function hideSyncOverlay() {
 }
 
 async function gsRead() {
-  const res = await fetch(GS_URL + '?action=read', { method: 'GET' });
+  const p = activeProfile.prefix;
+  const res = await fetch(GS_URL + `?action=read&profile=${p}`, { method: 'GET' });
   const json = await res.json();
   if (!json.ok) throw new Error(json.error || 'Erro ao ler dados');
   return json.data;
 }
 
 async function gsWrite() {
-  // Build categorias array from current state
+  const p = activeProfile.prefix;
   const categorias = [
     ...CATS_DESPESA.map(nome => ({ nome, tipo:'Despesa', emoji: CAT_ICONS[nome]||'📌' })),
     ...CATS_RECEITA.map(nome => ({ nome, tipo:'Receita', emoji: CAT_ICONS[nome]||'📌' }))
   ];
-
   const payload = {
-    transacoes:  txs.map(t => ({
-      id:t.id, tipo:t.tipo, valor:t.valor, data:t.data,
-      desc:t.desc, cat:t.cat, conta:t.conta, notas:t.notas||''
-    })),
-    budgets:    Object.entries(budgets).map(([cat,limite]) => ({ cat, limite })),
-    saldos:     Object.entries(saldosIniciais).map(([conta,valor]) => ({ conta, valor })),
-    ppr:        pprEntries,
-    invest:     investEntries,
+    profile: p,
+    transacoes:  txs.map(t => ({ id:t.id, tipo:t.tipo, valor:t.valor, data:t.data, desc:t.desc, cat:t.cat, conta:t.conta, notas:t.notas||'' })),
+    budgets:     Object.entries(budgets).map(([cat,limite]) => ({ cat, limite })),
+    saldos:      Object.entries(saldosIniciais).map(([conta,valor]) => ({ conta, valor })),
+    ppr:         pprEntries,
+    invest:      investEntries,
     categorias
   };
   const res = await fetch(GS_URL + '?action=write&data=' + encodeURIComponent(JSON.stringify(payload)), { method: 'GET' });
@@ -1384,7 +1520,8 @@ document.querySelectorAll('.nav-item[data-section]').forEach(item=>{
 function renderTopbarMeta(name) {
   const el = document.getElementById('topbarMeta');
   const now = new Date().toLocaleDateString('pt-PT',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
-  el.textContent = name==='dashboard' ? now : '';
+  const profile = activeProfile ? ` · ${activeProfile.name}` : '';
+  el.textContent = name==='dashboard' ? now + profile : '';
 }
 function renderTopbarActions(name) {
   const el = document.getElementById('topbarActions');
@@ -1399,9 +1536,9 @@ function renderTopbarActions(name) {
 // ── CATEGORIES HELPER ─────────────────────────────────────────────────────────
 
 function catsForTipo(tipo) {
-  if (tipo==='Receita') return CATS_RECEITA;
-  if (tipo==='Transferência') return CATS_TRANSFERENCIA;
-  return CATS_DESPESA;
+  if (tipo === 'Receita') return [...CATS_RECEITA];
+  if (tipo === 'Transferência') return [...CATS_TRANSFERENCIA];
+  return [...CATS_DESPESA];
 }
 
 function fillSelect(sel, cats, selected='') {
@@ -2543,12 +2680,76 @@ function deleteInvestEntry(idx) {
   toast('Registo eliminado.','info');
 }
 
-// ── DEFINIÇÕES — CATEGORIAS ───────────────────────────────────────────────────
+// ── GESTÃO DE UTILIZADORES ────────────────────────────────────────────────────
+
+function getInitials(name) {
+  return name.trim().split(' ').filter(Boolean)
+    .map(w => w[0].toUpperCase()).slice(0,2).join('');
+}
 
 function renderDefinicoes() {
   renderCatList('Despesa');
   renderCatList('Receita');
+
+  // Show user management only for admin
+  const section = document.getElementById('userManagementSection');
+  if (activeProfile && activeProfile.isAdmin) {
+    section.style.display = 'block';
+    renderUserList();
+  } else {
+    section.style.display = 'none';
+  }
 }
+
+function renderUserList() {
+  const ul = document.getElementById('userList');
+  ul.innerHTML = Object.entries(PROFILES).map(([id, p]) => `
+    <div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid rgba(48,54,61,.4)">
+      <div style="width:36px;height:36px;border-radius:50%;background:${p.color};display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#0d1117;flex-shrink:0">${p.initials}</div>
+      <div style="flex:1">
+        <div style="font-weight:600;font-size:13px">${p.name}</div>
+        <div style="font-size:11px;color:var(--text-muted)">${p.role} · PIN ${getStoredPin(id) ? 'definido ✓' : 'não definido ainda'}</div>
+      </div>
+      ${!p.isAdmin ? `
+        <button class="btn btn-danger btn-icon btn-sm" onclick="deleteUser('${id}')" title="Remover utilizador">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/></svg>
+        </button>` : `<span style="font-size:11px;color:var(--text-dim)">admin</span>`}
+    </div>
+  `).join('');
+}
+
+function createUser() {
+  const name  = document.getElementById('newUserName').value.trim();
+  const role  = document.getElementById('newUserRole').value;
+  const color = document.getElementById('newUserColor').value;
+  if (!name) return toast('Escreve o nome do utilizador.', 'error');
+
+  // Generate a unique ID from the name
+  const id = name.toLowerCase().replace(/\s+/g,'_').replace(/[^a-z0-9_]/g,'') + '_' + Date.now().toString(36);
+  const initials = getInitials(name);
+  const isAdmin  = role === 'Administrador';
+
+  PROFILES[id] = { name, initials, role, color, prefix: id, isAdmin };
+  saveProfiles(PROFILES);
+
+  document.getElementById('newUserName').value = '';
+  renderUserList();
+  toast(`Utilizador "${name}" criado! Pode agora entrar e definir o seu PIN.`, 'success');
+}
+
+function deleteUser(id) {
+  const p = PROFILES[id];
+  if (!p) return;
+  if (!confirm(`Remover o utilizador "${p.name}"?\nTodos os dados deste perfil serão eliminados.`)) return;
+  delete PROFILES[id];
+  // Remove their PIN
+  localStorage.removeItem(`fp_pin_${id}`);
+  saveProfiles(PROFILES);
+  renderUserList();
+  toast(`Utilizador removido.`, 'info');
+}
+
+// ── DEFINIÇÕES — CATEGORIAS ───────────────────────────────────────────────────
 
 function renderCatList(tipo) {
   const cats  = tipo === 'Despesa' ? CATS_DESPESA : CATS_RECEITA;
@@ -2574,127 +2775,184 @@ function renderCatList(tipo) {
 }
 
 function addCatDespesa() {
-  const emoji = document.getElementById('newCatDespesaEmoji').value.trim() || '📌';
-  const nome  = document.getElementById('newCatDespesaNome').value.trim();
-  if (!nome) return toast('Escreve o nome da categoria.','error');
-  if (CATS_DESPESA.includes(nome)) return toast('Essa categoria já existe.','error');
-  CATS_DESPESA.push(nome);
+  const emojiEl = document.getElementById('newCatDespesaEmoji');
+  const nomeEl  = document.getElementById('newCatDespesaNome');
+  const emoji   = (emojiEl.value || '').trim() || '📌';
+  const nome    = (nomeEl.value  || '').trim();
+  if (!nome) return toast('Escreve o nome da categoria.', 'error');
+  if (CATS_DESPESA.map(c=>c.toLowerCase()).includes(nome.toLowerCase()))
+    return toast('Essa categoria já existe.', 'error');
+  CATS_DESPESA = [...CATS_DESPESA, nome];
   CAT_ICONS[nome] = emoji;
-  document.getElementById('newCatDespesaEmoji').value = '';
-  document.getElementById('newCatDespesaNome').value  = '';
+  emojiEl.value = '';
+  nomeEl.value  = '';
   scheduleSync();
   renderDefinicoes();
-  // Refresh category dropdowns
-  fillSelect(document.getElementById('movCat'), catsForTipo(activeTipo));
-  fillSelect(document.getElementById('budgetCat'), CATS_DESPESA);
-  toast(`Categoria "${nome}" adicionada!`, 'success');
+  refreshAllCatDropdowns();
+  toast(`Categoria "${nome}" adicionada! 🎉`, 'success');
 }
 
 function addCatReceita() {
-  const emoji = document.getElementById('newCatReceitaEmoji').value.trim() || '📌';
-  const nome  = document.getElementById('newCatReceitaNome').value.trim();
-  if (!nome) return toast('Escreve o nome da categoria.','error');
-  if (CATS_RECEITA.includes(nome)) return toast('Essa categoria já existe.','error');
-  CATS_RECEITA.push(nome);
+  const emojiEl = document.getElementById('newCatReceitaEmoji');
+  const nomeEl  = document.getElementById('newCatReceitaNome');
+  const emoji   = (emojiEl.value || '').trim() || '📌';
+  const nome    = (nomeEl.value  || '').trim();
+  if (!nome) return toast('Escreve o nome da categoria.', 'error');
+  if (CATS_RECEITA.map(c=>c.toLowerCase()).includes(nome.toLowerCase()))
+    return toast('Essa categoria já existe.', 'error');
+  CATS_RECEITA = [...CATS_RECEITA, nome];
   CAT_ICONS[nome] = emoji;
-  document.getElementById('newCatReceitaEmoji').value = '';
-  document.getElementById('newCatReceitaNome').value  = '';
+  emojiEl.value = '';
+  nomeEl.value  = '';
   scheduleSync();
   renderDefinicoes();
-  fillSelect(document.getElementById('movCat'), catsForTipo(activeTipo));
-  toast(`Categoria "${nome}" adicionada!`, 'success');
+  refreshAllCatDropdowns();
+  toast(`Categoria "${nome}" adicionada! 🎉`, 'success');
 }
 
 function deleteCat(tipo, nome) {
-  if (!confirm(`Eliminar a categoria "${nome}"? As transações com esta categoria ficam com "Outros".`)) return;
+  if (!confirm(`Eliminar a categoria "${nome}"?\nAs transações existentes ficam com "Outros".`)) return;
   if (tipo === 'Despesa') {
     CATS_DESPESA = CATS_DESPESA.filter(c => c !== nome);
   } else {
     CATS_RECEITA = CATS_RECEITA.filter(c => c !== nome);
   }
-  // Reassign existing transactions
   txs = txs.map(t => t.cat === nome ? { ...t, cat: 'Outros' } : t);
   delete CAT_ICONS[nome];
   scheduleSync();
   renderDefinicoes();
-  fillSelect(document.getElementById('movCat'), catsForTipo(activeTipo));
-  fillSelect(document.getElementById('budgetCat'), CATS_DESPESA);
+  refreshAllCatDropdowns();
   toast(`Categoria "${nome}" eliminada.`, 'info');
+}
+
+function refreshAllCatDropdowns() {
+  // Registar form
+  const movCat = document.getElementById('movCat');
+  if (movCat) fillSelect(movCat, catsForTipo(activeTipo));
+  // Budget form
+  const budgetCat = document.getElementById('budgetCat');
+  if (budgetCat) fillSelect(budgetCat, CATS_DESPESA);
+  // Transações filter
+  const txFilterCat = document.getElementById('txFilterCat');
+  if (txFilterCat) {
+    const cur = txFilterCat.value;
+    txFilterCat.innerHTML = '<option value="">Todas as categorias</option>';
+    const used = [...new Set(txs.map(t=>t.cat))].sort();
+    used.forEach(c => txFilterCat.innerHTML += `<option ${c===cur?'selected':''}>${c}</option>`);
+  }
 }
 
 // ── PIN / AUTH ────────────────────────────────────────────────────────────────
 
-const PIN_KEY       = 'fp_pin';
-const INACTIVITY_MS = 15 * 60 * 1000; // 15 min
-const WARN_BEFORE   = 30;              // warn 30 s before lock
+const INACTIVITY_MS = 15 * 60 * 1000;
+const WARN_BEFORE   = 30;
 
 let pinBuffer    = '';
-let pinMode      = 'login';   // 'setup' | 'login'
-let pinSetupBuf  = '';        // first entry when setting up
-let pinSetupStep = 1;         // 1 = first entry, 2 = confirm
-let inactivityTimer  = null;
+let pinMode      = 'login';
+let pinSetupBuf  = '';
+let pinSetupStep = 1;
+let inactivityTimer     = null;
 let inactivityWarnTimer = null;
-let warnCountdown    = null;
+let warnCountdown       = null;
 let isLocked = true;
 
-function getStoredPin() { return localStorage.getItem(PIN_KEY); }
-function storePin(p)    { localStorage.setItem(PIN_KEY, p); }
+function getPinKey(profileId) { return `fp_pin_${profileId}`; }
+function getStoredPin(profileId) { return localStorage.getItem(getPinKey(profileId)); }
+function storePin(profileId, p) { localStorage.setItem(getPinKey(profileId), p); }
+
+// ── PROFILE SELECTION ─────────────────────────────────────────────────────────
 
 function initAuth() {
-  const stored = getStoredPin();
+  // Always start at profile selector
+  showProfileScreen();
+}
+
+function showProfileScreen() {
+  isLocked = true;
+  activeProfile = null;
+  clearInactivityTimers();
+
+  // Render profile list dynamically
+  const list = document.getElementById('profileList');
+  list.innerHTML = Object.entries(PROFILES).map(([id, p]) => `
+    <div class="profile-btn" onclick="selectProfile('${id}')">
+      <div class="profile-avatar" style="background:${p.color}">${p.initials}</div>
+      <div>
+        <div class="profile-name">${p.name}</div>
+        <div class="profile-role">${p.role}</div>
+      </div>
+      <svg style="margin-left:auto;color:var(--text-muted)" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+    </div>
+  `).join('');
+
+  document.getElementById('profileScreen').classList.remove('hidden');
+  document.getElementById('pinScreen').classList.add('hidden');
+}
+
+function selectProfile(profileId) {
+  activeProfile = PROFILES[profileId];
+  activeProfile.id = profileId;
+
+  // Update PIN screen for this profile
+  const stored = getStoredPin(profileId);
+  document.getElementById('profileScreen').classList.add('hidden');
+  document.getElementById('pinScreen').classList.remove('hidden');
+
   if (!stored) {
-    // First run — setup mode
-    pinMode = 'setup';
-    pinSetupStep = 1;
-    document.getElementById('pinTitle').textContent = 'Criar PIN';
+    pinMode = 'setup'; pinSetupStep = 1; pinSetupBuf = '';
+    document.getElementById('pinTitle').textContent = activeProfile.name;
     document.getElementById('pinSubtitle').textContent = 'Define o teu PIN de 4 dígitos';
     document.getElementById('pinSetupHint').style.display = 'block';
   } else {
     pinMode = 'login';
-    document.getElementById('pinTitle').textContent = 'Bem-vinda, Rita 👋';
+    document.getElementById('pinTitle').textContent = 'Olá, ' + activeProfile.name.split(' ')[0] + '! 👋';
     document.getElementById('pinSubtitle').textContent = 'Introduz o teu PIN para entrar';
     document.getElementById('pinSetupHint').style.display = 'none';
   }
-  showPinScreen();
-}
-
-function showPinScreen() {
-  isLocked = true;
   pinBuffer = '';
   updateDots();
-  document.getElementById('pinScreen').classList.remove('hidden');
-  clearInactivityTimers();
+  document.getElementById('pinErrorMsg').classList.remove('visible');
 }
 
-function hidePinScreen() {
-  isLocked = false;
+function backToProfiles() {
+  activeProfile = null;
+  pinBuffer = '';
   document.getElementById('pinScreen').classList.add('hidden');
-  resetInactivityTimer();
-  appInit();
+  showProfileScreen();
+}
+
+function switchProfile() {
+  clearInactivityTimers();
+  // Reset all data
+  txs = []; budgets = {}; saldosIniciais = {}; pprEntries = []; investEntries = [];
+  CATS_DESPESA = [...CATS_DESPESA_DEFAULT];
+  CATS_RECEITA = [...CATS_RECEITA_DEFAULT];
+  showProfileScreen();
 }
 
 function lockApp() {
   pinBuffer = '';
   pinMode = 'login';
-  document.getElementById('pinTitle').textContent = 'Bem-vinda, Rita 👋';
+  const name = activeProfile ? activeProfile.name.split(' ')[0] : '';
+  document.getElementById('pinTitle').textContent = `Olá, ${name}! 👋`;
   document.getElementById('pinSubtitle').textContent = 'Introduz o teu PIN para entrar';
   document.getElementById('pinSetupHint').style.display = 'none';
   document.getElementById('pinErrorMsg').classList.remove('visible');
   updateDots();
-  showPinScreen();
+  isLocked = true;
+  clearInactivityTimers();
+  document.getElementById('pinScreen').classList.remove('hidden');
 }
 
 function pinPress(digit) {
   if (pinBuffer.length >= 4) return;
   pinBuffer += digit;
   updateDots();
-  if (pinBuffer.length === 4) {
-    setTimeout(() => handlePinComplete(), 120);
-  }
+  if (pinBuffer.length === 4) setTimeout(() => handlePinComplete(), 120);
 }
 
 function pinClear() {
-  if (pinBuffer.length === 0) return;
+  if (!pinBuffer.length) return;
   pinBuffer = pinBuffer.slice(0, -1);
   updateDots();
   hidePinError();
@@ -2717,11 +2975,7 @@ function showPinError(msg) {
   const el = document.getElementById('pinErrorMsg');
   el.textContent = msg;
   el.classList.add('visible');
-  setTimeout(() => {
-    pinBuffer = '';
-    updateDots();
-    el.classList.remove('visible');
-  }, 900);
+  setTimeout(() => { pinBuffer = ''; updateDots(); el.classList.remove('visible'); }, 900);
 }
 
 function hidePinError() {
@@ -2729,31 +2983,27 @@ function hidePinError() {
 }
 
 function handlePinComplete() {
+  const profileId = activeProfile.id;
   if (pinMode === 'setup') {
     if (pinSetupStep === 1) {
-      pinSetupBuf = pinBuffer;
-      pinBuffer = '';
-      pinSetupStep = 2;
+      pinSetupBuf = pinBuffer; pinBuffer = ''; pinSetupStep = 2;
       document.getElementById('pinSubtitle').textContent = 'Confirma o teu PIN';
       document.getElementById('pinSetupHint').style.display = 'none';
       updateDots();
     } else {
-      // Confirm
       if (pinBuffer === pinSetupBuf) {
-        storePin(pinBuffer);
+        storePin(profileId, pinBuffer);
         toast('PIN criado com sucesso! 🔐', 'success');
         hidePinScreen();
       } else {
         showPinError('Os PINs não coincidem. Tenta de novo.');
-        pinSetupStep = 1;
-        pinSetupBuf = '';
+        pinSetupStep = 1; pinSetupBuf = '';
         document.getElementById('pinSubtitle').textContent = 'Define o teu PIN de 4 dígitos';
         document.getElementById('pinSetupHint').style.display = 'block';
       }
     }
   } else {
-    // Login
-    const stored = getStoredPin();
+    const stored = getStoredPin(profileId);
     if (pinBuffer === stored) {
       hidePinError();
       hidePinScreen();
@@ -2761,6 +3011,16 @@ function handlePinComplete() {
       showPinError('PIN incorreto. Tenta novamente.');
     }
   }
+}
+
+function hidePinScreen() {
+  isLocked = false;
+  document.getElementById('pinScreen').classList.add('hidden');
+  // Update sidebar profile info
+  document.getElementById('sidebarProfileName').textContent = activeProfile.name;
+  document.getElementById('sidebarProfileAvatar').textContent = activeProfile.initials;
+  resetInactivityTimer();
+  appInit();
 }
 
 // ── INACTIVITY TIMER ──────────────────────────────────────────────────────────
@@ -2827,11 +3087,14 @@ async function appInit() {
   try {
     const raw = await gsRead();
     parseSheetData(raw);
-    // If no data at all, it's first run — no sample data needed
   } catch(e) {
     toast('Sem ligação à cloud — a trabalhar offline temporariamente.', 'info');
   }
   hideSyncOverlay();
+  // Refresh all category dropdowns with loaded/custom cats
+  refreshAllCatDropdowns();
+  fillSelect(document.getElementById('movCat'), catsForTipo(activeTipo));
+  fillSelect(document.getElementById('budgetCat'), CATS_DESPESA);
   renderTopbarMeta('dashboard');
   renderTopbarActions('dashboard');
   renderDashboard();
@@ -2840,6 +3103,15 @@ async function appInit() {
 renderTopbarMeta('dashboard');
 renderTopbarActions('dashboard');
 initAuth();
+
+// ── PWA SERVICE WORKER ────────────────────────────────────────────────────────
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js')
+      .then(() => console.log('CashFlow SW registado'))
+      .catch(e => console.log('SW erro:', e));
+  });
+}
 </script>
 </body>
 </html>
