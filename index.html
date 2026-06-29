@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="pt-PT">
 <head>
@@ -528,6 +529,14 @@
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
         <span>Importar Extrato</span>
       </div>
+      <div class="nav-item" data-section="ppr">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+        <span>PPR & Investimentos</span>
+      </div>
+      <div class="nav-item" data-section="contas">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
+        <span>Contas & Saldos</span>
+      </div>
     </div>
     <div class="sidebar-bottom">
       <div class="nav-item" id="exportBtn">
@@ -611,10 +620,10 @@
               <div class="form-group">
                 <label class="form-label">Conta</label>
                 <select id="movConta" class="form-control">
-                  <option>Conta Corrente</option>
+                  <option>Revolut</option>
+                  <option>Crédito Agrícola</option>
                   <option>Caixa</option>
                   <option>MBWay</option>
-                  <option>Cartão Crédito</option>
                   <option>Poupança</option>
                 </select>
               </div>
@@ -648,10 +657,10 @@
             </select>
             <select id="txFilterConta" class="form-control">
               <option value="">Todas as contas</option>
-              <option>Conta Corrente</option>
+              <option>Revolut</option>
+              <option>Crédito Agrícola</option>
               <option>Caixa</option>
               <option>MBWay</option>
-              <option>Cartão Crédito</option>
               <option>Poupança</option>
             </select>
           </div>
@@ -775,8 +784,8 @@
                   <div class="form-group">
                     <label class="form-label">Conta associada</label>
                     <select id="importConta" class="form-control">
-                      <option>Conta Corrente</option><option>Caixa</option>
-                      <option>MBWay</option><option>Cartão Crédito</option><option>Poupança</option>
+                      <option>Revolut</option><option>Crédito Agrícola</option>
+                      <option>Caixa</option><option>MBWay</option><option>Poupança</option>
                     </select>
                   </div>
                 </div>
@@ -883,6 +892,124 @@
 
       </div>
 
+      <!-- PPR & INVESTIMENTOS SECTION -->
+      <div class="section" id="section-ppr">
+        <div style="display:flex;gap:8px;margin-bottom:20px">
+          <div class="tabs" id="pprTabs">
+            <div class="tab active" data-ppr="ppr">🏦 PPR</div>
+            <div class="tab" data-ppr="invest">📈 Investimentos</div>
+          </div>
+        </div>
+
+        <!-- PPR TAB -->
+        <div id="ppr-tab-ppr">
+          <div class="grid-2" style="align-items:start;gap:20px">
+            <div style="display:flex;flex-direction:column;gap:16px">
+              <!-- KPIs -->
+              <div class="grid-2" id="pprKpis"></div>
+              <!-- Chart -->
+              <div class="card">
+                <div class="card-title">Evolução do PPR</div>
+                <div class="chart-wrap" style="margin-top:12px"><canvas id="pprChart"></canvas></div>
+              </div>
+              <!-- History -->
+              <div class="card">
+                <div class="section-header"><h2>Histórico de registos</h2></div>
+                <div id="pprHistory"></div>
+              </div>
+            </div>
+            <!-- Form -->
+            <div class="card" style="position:sticky;top:0">
+              <div class="section-header" style="margin-bottom:16px"><h2>Registar PPR</h2></div>
+              <div style="display:flex;flex-direction:column;gap:14px">
+                <div class="form-group">
+                  <label class="form-label">Data do registo</label>
+                  <input type="date" id="pprData" class="form-control">
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Valor total acumulado (€)</label>
+                  <input type="number" step="0.01" id="pprValorTotal" class="form-control" placeholder="Ex: 4500,00">
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Contribuição deste mês (€)</label>
+                  <input type="number" step="0.01" id="pprContrib" class="form-control" placeholder="Ex: 150,00">
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Notas (opcional)</label>
+                  <input type="text" id="pprNotas" class="form-control" placeholder="Ex: Reforço anual">
+                </div>
+                <button class="btn btn-primary" style="align-self:flex-start" onclick="savePPREntry()">Guardar registo</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- INVEST TAB -->
+        <div id="ppr-tab-invest" style="display:none">
+          <div class="grid-2" style="align-items:start;gap:20px">
+            <div style="display:flex;flex-direction:column;gap:16px">
+              <div class="grid-2" id="investKpis"></div>
+              <div class="card">
+                <div class="card-title">Evolução do portfólio</div>
+                <div class="chart-wrap" style="margin-top:12px"><canvas id="investChart"></canvas></div>
+              </div>
+              <div class="card">
+                <div class="section-header"><h2>Histórico de registos</h2></div>
+                <div id="investHistory"></div>
+              </div>
+            </div>
+            <div class="card" style="position:sticky;top:0">
+              <div class="section-header" style="margin-bottom:16px"><h2>Registar Investimento</h2></div>
+              <div style="display:flex;flex-direction:column;gap:14px">
+                <div class="form-group">
+                  <label class="form-label">Data do registo</label>
+                  <input type="date" id="investData" class="form-control">
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Valor total da carteira (€)</label>
+                  <input type="number" step="0.01" id="investValorTotal" class="form-control" placeholder="Ex: 8200,00">
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Montante investido agora (€)</label>
+                  <input type="number" step="0.01" id="investAporte" class="form-control" placeholder="Ex: 200,00">
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Onde (plataforma / ativo)</label>
+                  <input type="text" id="investPlataforma" class="form-control" placeholder="Ex: Trading 212, ETF S&P500">
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Notas (opcional)</label>
+                  <input type="text" id="investNotas" class="form-control" placeholder="Ex: Compra programada mensal">
+                </div>
+                <button class="btn btn-primary" style="align-self:flex-start" onclick="saveInvestEntry()">Guardar registo</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- CONTAS & SALDOS SECTION -->
+      <div class="section" id="section-contas">
+        <div class="grid-2" style="align-items:start;gap:20px">
+          <div style="display:flex;flex-direction:column;gap:16px">
+            <!-- Saldos por conta -->
+            <div class="card" id="contasSummary"></div>
+            <!-- Saldo total card -->
+            <div class="card" id="contasTotalCard"></div>
+          </div>
+          <div class="card">
+            <div class="section-header" style="margin-bottom:16px">
+              <h2>Definir saldo inicial</h2>
+            </div>
+            <p style="font-size:13px;color:var(--text-muted);margin-bottom:20px;line-height:1.6">
+              Define o saldo de cada conta no momento em que começaste a usar a app. Este valor serve como ponto de partida para calcular o saldo atual correto.
+            </p>
+            <div style="display:flex;flex-direction:column;gap:14px" id="saldoInicialForm"></div>
+            <button class="btn btn-primary" style="margin-top:20px;align-self:flex-start" onclick="saveSaldosIniciais()">Guardar saldos iniciais</button>
+          </div>
+        </div>
+      </div>
+
     </div>
   </div>
 </div>
@@ -927,7 +1054,7 @@
       <div class="form-group">
         <label class="form-label">Conta</label>
         <select id="editConta" class="form-control">
-          <option>Conta Corrente</option><option>Caixa</option><option>MBWay</option><option>Cartão Crédito</option><option>Poupança</option>
+          <option>Revolut</option><option>Crédito Agrícola</option><option>Caixa</option><option>MBWay</option><option>Poupança</option>
         </select>
       </div>
       <div class="form-group">
@@ -1004,8 +1131,23 @@ function saveData(txs) { localStorage.setItem('fp_txs', JSON.stringify(txs)); }
 function loadBudgets() { return JSON.parse(localStorage.getItem('fp_budgets') || '{}'); }
 function saveBudgets(b) { localStorage.setItem('fp_budgets', JSON.stringify(b)); }
 
+// ── CONTAS E SALDOS INICIAIS ──────────────────────────────────────────────────
+const CONTAS = ['Revolut','Crédito Agrícola','Caixa','MBWay','Poupança'];
+
+function loadSaldosIniciais() { return JSON.parse(localStorage.getItem('fp_saldos_iniciais') || '{}'); }
+function saveSaldosIniciais(s) { localStorage.setItem('fp_saldos_iniciais', JSON.stringify(s)); }
+
+// ── PPR & INVESTIMENTOS ───────────────────────────────────────────────────────
+function loadPPR()  { return JSON.parse(localStorage.getItem('fp_ppr')  || '[]'); }
+function savePPR(d) { localStorage.setItem('fp_ppr',  JSON.stringify(d)); }
+function loadInvest()  { return JSON.parse(localStorage.getItem('fp_invest')  || '[]'); }
+function saveInvest(d) { localStorage.setItem('fp_invest', JSON.stringify(d)); }
+
 let txs = loadData();
 let budgets = loadBudgets();
+let saldosIniciais = loadSaldosIniciais();
+let pprEntries = loadPPR();
+let investEntries = loadInvest();
 let activeTipo = 'Despesa';
 let activePeriod = 'current';
 let charts = {};
@@ -1059,7 +1201,8 @@ function destroyChart(id) { if (charts[id]) { charts[id].destroy(); delete chart
 const SECTION_TITLES = {
   dashboard:'Dashboard', registar:'Registar Movimento',
   transacoes:'Transações', analise:'Análise & Gráficos',
-  orcamentos:'Orçamentos', importar:'Importar Extrato'
+  orcamentos:'Orçamentos', importar:'Importar Extrato',
+  ppr:'PPR & Investimentos', contas:'Contas & Saldos'
 };
 
 function goTo(name) {
@@ -1075,6 +1218,8 @@ function goTo(name) {
   if (name==='analise') renderAnalise();
   if (name==='orcamentos') renderOrcamentos();
   if (name==='importar') { /* handled by step system */ }
+  if (name==='ppr') renderPPR();
+  if (name==='contas') renderContas();
 }
 
 document.querySelectorAll('.nav-item[data-section]').forEach(item=>{
@@ -1160,7 +1305,9 @@ function renderDashboard() {
 
   const income = cmTxs.filter(t=>t.tipo==='Receita').reduce((s,t)=>s+t.valor,0);
   const expense = cmTxs.filter(t=>t.tipo==='Despesa').reduce((s,t)=>s+t.valor,0);
-  const balance = txs.filter(t=>t.tipo!=='Transferência').reduce((s,t)=>t.tipo==='Receita'?s+t.valor:s-t.valor,0);
+  const txBalance = txs.filter(t=>t.tipo!=='Transferência').reduce((s,t)=>t.tipo==='Receita'?s+t.valor:s-t.valor,0);
+  const initialTotal = Object.values(saldosIniciais).reduce((s,v)=>s+(parseFloat(v)||0),0);
+  const balance = initialTotal + txBalance;
   const saving = income>0 ? ((income-expense)/income*100) : 0;
 
   const pmExpense = pmTxs.filter(t=>t.tipo==='Despesa').reduce((s,t)=>s+t.valor,0);
@@ -1914,6 +2061,293 @@ function confirmImport() {
     `${toImport.length} transação(ões) importada(s) com sucesso para "${toImport[0].conta}".`;
   setImportStep(4);
   toast(`${toImport.length} transações importadas!`, 'success');
+}
+
+// ── CONTAS & SALDOS ───────────────────────────────────────────────────────────
+
+function renderContas() {
+  // Build saldo inicial form
+  const form = document.getElementById('saldoInicialForm');
+  form.innerHTML = CONTAS.map(c => `
+    <div class="form-group">
+      <label class="form-label">${c}</label>
+      <div style="position:relative">
+        <input type="number" step="0.01" class="form-control" id="si-${c.replace(/\s/g,'_')}"
+          placeholder="0,00" value="${saldosIniciais[c] !== undefined ? saldosIniciais[c] : ''}">
+        <span style="position:absolute;right:12px;top:50%;transform:translateY(-50%);color:var(--text-muted);font-size:13px">€</span>
+      </div>
+    </div>
+  `).join('');
+
+  // Summary per account
+  const summary = document.getElementById('contasSummary');
+  const txMovs = (conta) => {
+    const r = txs.filter(t=>t.conta===conta&&t.tipo==='Receita').reduce((s,t)=>s+t.valor,0);
+    const d = txs.filter(t=>t.conta===conta&&t.tipo==='Despesa').reduce((s,t)=>s+t.valor,0);
+    return r - d;
+  };
+
+  summary.innerHTML = `
+    <div class="section-header"><h2>Saldo por conta</h2></div>
+    ${CONTAS.map(c => {
+      const inicial = parseFloat(saldosIniciais[c]) || 0;
+      const movimentos = txMovs(c);
+      const total = inicial + movimentos;
+      return `
+        <div class="summary-row">
+          <div style="display:flex;align-items:center;gap:10px">
+            <div style="width:36px;height:36px;border-radius:10px;background:var(--surface2);display:flex;align-items:center;justify-content:center;font-size:18px">
+              ${c==='Revolut'?'💳':c==='Crédito Agrícola'?'🏦':c==='Caixa'?'💵':c==='MBWay'?'📱':'🐷'}
+            </div>
+            <div>
+              <div style="font-weight:600;font-size:14px">${c}</div>
+              <div style="font-size:11px;color:var(--text-muted)">
+                Inicial: ${fmt(inicial)} · Movimentos: ${movimentos>=0?'+':''}${fmt(movimentos)}
+              </div>
+            </div>
+          </div>
+          <div class="amount ${total>=0?'receita':'despesa'}" style="font-size:16px">${fmt(total)}</div>
+        </div>
+      `;
+    }).join('')}
+  `;
+
+  // Total card
+  const totalInicial = Object.values(saldosIniciais).reduce((s,v)=>s+(parseFloat(v)||0),0);
+  const totalTx = txs.filter(t=>t.tipo!=='Transferência').reduce((s,t)=>t.tipo==='Receita'?s+t.valor:s-t.valor,0);
+  const totalGeral = totalInicial + totalTx;
+  document.getElementById('contasTotalCard').innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <div>
+        <div style="font-size:12px;color:var(--text-muted);font-weight:600;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Saldo total</div>
+        <div style="font-size:28px;font-family:'Roboto Mono',monospace;font-weight:500;color:${totalGeral>=0?'var(--accent)':'var(--danger)'}">${fmt(totalGeral)}</div>
+        <div style="font-size:12px;color:var(--text-muted);margin-top:4px">Saldos iniciais + movimentos registados</div>
+      </div>
+      <div style="font-size:40px">💰</div>
+    </div>
+  `;
+}
+
+function saveSaldosIniciais() {
+  CONTAS.forEach(c => {
+    const el = document.getElementById('si-'+c.replace(/\s/g,'_'));
+    if (el && el.value !== '') saldosIniciais[c] = parseFloat(el.value) || 0;
+  });
+  localStorage.setItem('fp_saldos_iniciais', JSON.stringify(saldosIniciais));
+  renderContas();
+  toast('Saldos iniciais guardados!', 'success');
+}
+function saveSaldosIniciais_storage() { localStorage.setItem('fp_saldos_iniciais', JSON.stringify(saldosIniciais)); }
+
+// ── PPR & INVESTIMENTOS ───────────────────────────────────────────────────────
+
+document.querySelectorAll('#pprTabs .tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('#pprTabs .tab').forEach(t=>t.classList.remove('active'));
+    tab.classList.add('active');
+    const which = tab.dataset.ppr;
+    document.getElementById('ppr-tab-ppr').style.display    = which==='ppr'    ? 'block' : 'none';
+    document.getElementById('ppr-tab-invest').style.display = which==='invest' ? 'block' : 'none';
+    if (which==='ppr') renderPPRTab();
+    else renderInvestTab();
+  });
+});
+
+document.getElementById('pprData').value    = new Date().toISOString().slice(0,10);
+document.getElementById('investData').value = new Date().toISOString().slice(0,10);
+
+function renderPPR() {
+  renderPPRTab();
+}
+
+function renderPPRTab() {
+  const sorted = [...pprEntries].sort((a,b)=>a.data.localeCompare(b.data));
+  const last   = sorted[sorted.length-1];
+  const prev   = sorted[sorted.length-2];
+
+  const totalAcum   = last ? last.valorTotal : 0;
+  const totalContrib = pprEntries.reduce((s,e)=>s+(parseFloat(e.contrib)||0),0);
+  const rendimento  = totalAcum - totalContrib;
+  const rendPct     = totalContrib > 0 ? (rendimento/totalContrib*100) : 0;
+  const varMes      = (last&&prev) ? last.valorTotal - prev.valorTotal : 0;
+
+  document.getElementById('pprKpis').innerHTML = `
+    <div class="card kpi">
+      <div class="card-title">Valor atual PPR</div>
+      <div class="kpi-value" style="color:var(--accent)">${fmt(totalAcum)}</div>
+      <div class="kpi-change ${varMes>=0?'up':'down'}">${varMes>=0?'▲':'▼'} ${fmt(Math.abs(varMes))} vs registo anterior</div>
+    </div>
+    <div class="card kpi">
+      <div class="card-title">Total contribuído</div>
+      <div class="kpi-value">${fmt(totalContrib)}</div>
+      <div class="kpi-change">Soma de todas as contribuições</div>
+    </div>
+    <div class="card kpi" style="grid-column:span 2">
+      <div class="card-title">Rendimento estimado</div>
+      <div class="kpi-value" style="color:${rendimento>=0?'var(--success)':'var(--danger)'}">${fmt(rendimento)}</div>
+      <div class="kpi-change ${rendimento>=0?'up':'down'}">${rendPct.toFixed(1)}% sobre o capital investido</div>
+    </div>
+  `;
+
+  // Chart
+  destroyChart('pprChart');
+  if (sorted.length > 0) {
+    charts['pprChart'] = new Chart(document.getElementById('pprChart'), {
+      type: 'line',
+      data: {
+        labels: sorted.map(e => fmtDate(e.data)),
+        datasets: [
+          { label:'Valor total', data:sorted.map(e=>e.valorTotal), borderColor:'#00c896', backgroundColor:'rgba(0,200,150,.1)', fill:true, tension:.4, pointBackgroundColor:'#00c896', pointRadius:4 },
+          { label:'Capital investido', data: sorted.map((_,i) => sorted.slice(0,i+1).reduce((s,e)=>s+(parseFloat(e.contrib)||0),0)), borderColor:'#58a6ff', backgroundColor:'rgba(88,166,255,.1)', fill:true, tension:.4, pointBackgroundColor:'#58a6ff', pointRadius:4, borderDash:[4,3] }
+        ]
+      },
+      options: chartBaseOpts()
+    });
+  }
+
+  // History
+  document.getElementById('pprHistory').innerHTML = sorted.length === 0
+    ? '<div class="empty"><div class="empty-icon">📊</div><h3>Sem registos ainda</h3><p>Adiciona o primeiro registo do teu PPR.</p></div>'
+    : [...sorted].reverse().map((e,i,arr) => {
+        const prev = arr[i+1];
+        const diff = prev ? e.valorTotal - prev.valorTotal : null;
+        return `
+          <div class="summary-row">
+            <div>
+              <div style="font-weight:500">${fmtDate(e.data)}</div>
+              <div style="font-size:11px;color:var(--text-muted);margin-top:2px">
+                Contribuição: ${fmt(e.contrib||0)}${e.notas?' · '+e.notas:''}
+              </div>
+            </div>
+            <div style="display:flex;align-items:center;gap:12px">
+              ${diff!==null ? `<span style="font-size:12px;color:${diff>=0?'var(--success)':'var(--danger)'};">${diff>=0?'+':''}${fmt(diff)}</span>` : ''}
+              <span class="amount receita" style="font-size:15px">${fmt(e.valorTotal)}</span>
+              <button class="btn btn-danger btn-icon btn-sm" onclick="deletePPREntry(${pprEntries.indexOf(e)})">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/></svg>
+              </button>
+            </div>
+          </div>`;
+      }).join('');
+}
+
+function savePPREntry() {
+  const data       = document.getElementById('pprData').value;
+  const valorTotal = parseFloat(document.getElementById('pprValorTotal').value);
+  const contrib    = parseFloat(document.getElementById('pprContrib').value) || 0;
+  const notas      = document.getElementById('pprNotas').value.trim();
+  if (!data || !valorTotal) return toast('Preenche a data e o valor total.','error');
+  pprEntries.push({ data, valorTotal, contrib, notas });
+  pprEntries.sort((a,b)=>a.data.localeCompare(b.data));
+  savePPR(pprEntries);
+  document.getElementById('pprValorTotal').value = '';
+  document.getElementById('pprContrib').value = '';
+  document.getElementById('pprNotas').value = '';
+  document.getElementById('pprData').value = new Date().toISOString().slice(0,10);
+  renderPPRTab();
+  toast('Registo PPR guardado!','success');
+}
+
+function deletePPREntry(idx) {
+  if (!confirm('Eliminar este registo?')) return;
+  pprEntries.splice(idx,1);
+  savePPR(pprEntries);
+  renderPPRTab();
+  toast('Registo eliminado.','info');
+}
+
+function renderInvestTab() {
+  const sorted = [...investEntries].sort((a,b)=>a.data.localeCompare(b.data));
+  const last   = sorted[sorted.length-1];
+  const prev   = sorted[sorted.length-2];
+
+  const totalAcum    = last ? last.valorTotal : 0;
+  const totalAportes = investEntries.reduce((s,e)=>s+(parseFloat(e.aporte)||0),0);
+  const rendimento   = totalAcum - totalAportes;
+  const rendPct      = totalAportes > 0 ? (rendimento/totalAportes*100) : 0;
+  const varMes       = (last&&prev) ? last.valorTotal - prev.valorTotal : 0;
+
+  document.getElementById('investKpis').innerHTML = `
+    <div class="card kpi">
+      <div class="card-title">Valor da carteira</div>
+      <div class="kpi-value" style="color:var(--accent)">${fmt(totalAcum)}</div>
+      <div class="kpi-change ${varMes>=0?'up':'down'}">${varMes>=0?'▲':'▼'} ${fmt(Math.abs(varMes))} vs registo anterior</div>
+    </div>
+    <div class="card kpi">
+      <div class="card-title">Total investido</div>
+      <div class="kpi-value">${fmt(totalAportes)}</div>
+      <div class="kpi-change">Soma de todos os aportes</div>
+    </div>
+    <div class="card kpi" style="grid-column:span 2">
+      <div class="card-title">Rendimento / Mais-valias</div>
+      <div class="kpi-value" style="color:${rendimento>=0?'var(--success)':'var(--danger)'}">${fmt(rendimento)}</div>
+      <div class="kpi-change ${rendimento>=0?'up':'down'}">${rendPct.toFixed(1)}% sobre o capital investido</div>
+    </div>
+  `;
+
+  destroyChart('investChart');
+  if (sorted.length > 0) {
+    charts['investChart'] = new Chart(document.getElementById('investChart'), {
+      type: 'line',
+      data: {
+        labels: sorted.map(e => fmtDate(e.data)),
+        datasets: [
+          { label:'Valor carteira', data:sorted.map(e=>e.valorTotal), borderColor:'#00c896', backgroundColor:'rgba(0,200,150,.1)', fill:true, tension:.4, pointBackgroundColor:'#00c896', pointRadius:4 },
+          { label:'Capital investido', data: sorted.map((_,i) => sorted.slice(0,i+1).reduce((s,e)=>s+(parseFloat(e.aporte)||0),0)), borderColor:'#d29922', backgroundColor:'rgba(210,153,34,.1)', fill:true, tension:.4, pointBackgroundColor:'#d29922', pointRadius:4, borderDash:[4,3] }
+        ]
+      },
+      options: chartBaseOpts()
+    });
+  }
+
+  document.getElementById('investHistory').innerHTML = sorted.length === 0
+    ? '<div class="empty"><div class="empty-icon">📈</div><h3>Sem registos ainda</h3><p>Adiciona o primeiro registo do teu portfólio.</p></div>'
+    : [...sorted].reverse().map((e,i,arr) => {
+        const prev = arr[i+1];
+        const diff = prev ? e.valorTotal - prev.valorTotal : null;
+        return `
+          <div class="summary-row">
+            <div>
+              <div style="font-weight:500">${fmtDate(e.data)}</div>
+              <div style="font-size:11px;color:var(--text-muted);margin-top:2px">
+                Aporte: ${fmt(e.aporte||0)}${e.plataforma?' · '+e.plataforma:''}${e.notas?' · '+e.notas:''}
+              </div>
+            </div>
+            <div style="display:flex;align-items:center;gap:12px">
+              ${diff!==null ? `<span style="font-size:12px;color:${diff>=0?'var(--success)':'var(--danger)'};">${diff>=0?'+':''}${fmt(diff)}</span>` : ''}
+              <span class="amount receita" style="font-size:15px">${fmt(e.valorTotal)}</span>
+              <button class="btn btn-danger btn-icon btn-sm" onclick="deleteInvestEntry(${investEntries.indexOf(e)})">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/></svg>
+              </button>
+            </div>
+          </div>`;
+      }).join('');
+}
+
+function saveInvestEntry() {
+  const data       = document.getElementById('investData').value;
+  const valorTotal = parseFloat(document.getElementById('investValorTotal').value);
+  const aporte     = parseFloat(document.getElementById('investAporte').value) || 0;
+  const plataforma = document.getElementById('investPlataforma').value.trim();
+  const notas      = document.getElementById('investNotas').value.trim();
+  if (!data || !valorTotal) return toast('Preenche a data e o valor total.','error');
+  investEntries.push({ data, valorTotal, aporte, plataforma, notas });
+  investEntries.sort((a,b)=>a.data.localeCompare(b.data));
+  saveInvest(investEntries);
+  document.getElementById('investValorTotal').value = '';
+  document.getElementById('investAporte').value = '';
+  document.getElementById('investPlataforma').value = '';
+  document.getElementById('investNotas').value = '';
+  document.getElementById('investData').value = new Date().toISOString().slice(0,10);
+  renderInvestTab();
+  toast('Registo de investimento guardado!','success');
+}
+
+function deleteInvestEntry(idx) {
+  if (!confirm('Eliminar este registo?')) return;
+  investEntries.splice(idx,1);
+  saveInvest(investEntries);
+  renderInvestTab();
+  toast('Registo eliminado.','info');
 }
 
 // ── PIN / AUTH ────────────────────────────────────────────────────────────────
