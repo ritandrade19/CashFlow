@@ -537,6 +537,10 @@
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
         <span>Contas & Saldos</span>
       </div>
+      <div class="nav-item" data-section="definicoes">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        <span>Definições</span>
+      </div>
     </div>
     <div class="sidebar-bottom">
       <div class="nav-item" id="exportBtn">
@@ -1011,6 +1015,41 @@
         </div>
       </div>
 
+      <!-- DEFINIÇÕES SECTION -->
+      <div class="section" id="section-definicoes">
+        <div class="grid-2" style="align-items:start;gap:20px">
+
+          <!-- Categorias de Despesa -->
+          <div class="card">
+            <div class="section-header" style="margin-bottom:16px">
+              <h2>Categorias de Despesa</h2>
+              <span style="font-size:12px;color:var(--text-muted)" id="catDespesaCount"></span>
+            </div>
+            <div id="catDespesaList" style="margin-bottom:16px"></div>
+            <div style="display:flex;gap:8px;align-items:center">
+              <input type="text" id="newCatDespesaEmoji" class="form-control" placeholder="💅" style="width:56px;text-align:center;font-size:18px">
+              <input type="text" id="newCatDespesaNome" class="form-control" placeholder="Nome da categoria">
+              <button class="btn btn-primary btn-sm" style="white-space:nowrap" onclick="addCatDespesa()">+ Adicionar</button>
+            </div>
+          </div>
+
+          <!-- Categorias de Receita -->
+          <div class="card">
+            <div class="section-header" style="margin-bottom:16px">
+              <h2>Categorias de Receita</h2>
+              <span style="font-size:12px;color:var(--text-muted)" id="catReceitaCount"></span>
+            </div>
+            <div id="catReceitaList" style="margin-bottom:16px"></div>
+            <div style="display:flex;gap:8px;align-items:center">
+              <input type="text" id="newCatReceitaEmoji" class="form-control" placeholder="💵" style="width:56px;text-align:center;font-size:18px">
+              <input type="text" id="newCatReceitaNome" class="form-control" placeholder="Nome da categoria">
+              <button class="btn btn-primary btn-sm" style="white-space:nowrap" onclick="addCatReceita()">+ Adicionar</button>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
     </div>
   </div>
 </div>
@@ -1076,19 +1115,23 @@
 <script>
 // ── DATA ──────────────────────────────────────────────────────────────────────
 
-const CATS_DESPESA = [
+const CATS_DESPESA_DEFAULT = [
   'Alimentação','Restaurantes & Cafés','Supermercado',
-  'Saúde & Farmácia','Transportes','Combustível',
+  'Saúde & Farmácia','Cuidados Pessoais','Transportes','Combustível',
   'Habitação','Serviços & Utilities','Vestuário',
   'Hobbies & Lazer','Ginásio & Desporto','Viagens',
   'Educação','Tecnologia','Seguros','Subscriptions','Outros'
 ];
-const CATS_RECEITA = ['Salário','Freelance','Investimentos','Rendas','Reembolsos','Outros'];
+const CATS_RECEITA_DEFAULT = ['Salário','Freelance','Investimentos','Rendas','Reembolsos','Outros'];
 const CATS_TRANSFERENCIA = ['Transferência'];
 
-const CAT_ICONS = {
+// These will be overridden by user-defined cats loaded from Sheet
+let CATS_DESPESA  = [...CATS_DESPESA_DEFAULT];
+let CATS_RECEITA  = [...CATS_RECEITA_DEFAULT];
+
+let CAT_ICONS = {
   'Alimentação':'🍎','Restaurantes & Cafés':'🍽️','Supermercado':'🛒',
-  'Saúde & Farmácia':'💊','Transportes':'🚌','Combustível':'⛽',
+  'Saúde & Farmácia':'💊','Cuidados Pessoais':'💅','Transportes':'🚌','Combustível':'⛽',
   'Habitação':'🏠','Serviços & Utilities':'💡','Vestuário':'👗',
   'Hobbies & Lazer':'🎮','Ginásio & Desporto':'💪','Viagens':'✈️',
   'Educação':'📚','Tecnologia':'💻','Seguros':'🛡️','Subscriptions':'📱',
@@ -1165,16 +1208,22 @@ async function gsRead() {
 }
 
 async function gsWrite() {
-  // Serialise everything
+  // Build categorias array from current state
+  const categorias = [
+    ...CATS_DESPESA.map(nome => ({ nome, tipo:'Despesa', emoji: CAT_ICONS[nome]||'📌' })),
+    ...CATS_RECEITA.map(nome => ({ nome, tipo:'Receita', emoji: CAT_ICONS[nome]||'📌' }))
+  ];
+
   const payload = {
     transacoes:  txs.map(t => ({
       id:t.id, tipo:t.tipo, valor:t.valor, data:t.data,
       desc:t.desc, cat:t.cat, conta:t.conta, notas:t.notas||''
     })),
-    budgets: Object.entries(budgets).map(([cat,limite]) => ({ cat, limite })),
-    saldos:  Object.entries(saldosIniciais).map(([conta,valor]) => ({ conta, valor })),
-    ppr:     pprEntries,
-    invest:  investEntries
+    budgets:    Object.entries(budgets).map(([cat,limite]) => ({ cat, limite })),
+    saldos:     Object.entries(saldosIniciais).map(([conta,valor]) => ({ conta, valor })),
+    ppr:        pprEntries,
+    invest:     investEntries,
+    categorias
   };
   const res = await fetch(GS_URL + '?action=write&data=' + encodeURIComponent(JSON.stringify(payload)), { method: 'GET' });
   const json = await res.json();
@@ -1219,6 +1268,17 @@ function parseSheetData(raw) {
     plataforma: String(r.plataforma || ''),
     notas:      String(r.notas || '')
   })).filter(r => r.data);
+
+  // custom categories
+  if (raw.categorias && raw.categorias.length > 0) {
+    const desp = raw.categorias.filter(c => c.tipo === 'Despesa').map(c => String(c.nome));
+    const rec  = raw.categorias.filter(c => c.tipo === 'Receita').map(c => String(c.nome));
+    if (desp.length > 0) CATS_DESPESA = desp;
+    if (rec.length  > 0) CATS_RECEITA = rec;
+    raw.categorias.forEach(c => {
+      if (c.nome && c.emoji) CAT_ICONS[String(c.nome)] = String(c.emoji);
+    });
+  }
 }
 
 // Debounced auto-save — waits 1.5s after last change before writing
@@ -1295,7 +1355,8 @@ const SECTION_TITLES = {
   dashboard:'Dashboard', registar:'Registar Movimento',
   transacoes:'Transações', analise:'Análise & Gráficos',
   orcamentos:'Orçamentos', importar:'Importar Extrato',
-  ppr:'PPR & Investimentos', contas:'Contas & Saldos'
+  ppr:'PPR & Investimentos', contas:'Contas & Saldos',
+  definicoes:'Definições'
 };
 
 function goTo(name) {
@@ -1313,6 +1374,7 @@ function goTo(name) {
   if (name==='importar') { /* handled by step system */ }
   if (name==='ppr') renderPPR();
   if (name==='contas') renderContas();
+  if (name==='definicoes') renderDefinicoes();
 }
 
 document.querySelectorAll('.nav-item[data-section]').forEach(item=>{
@@ -2479,6 +2541,85 @@ function deleteInvestEntry(idx) {
   saveInvest(investEntries);
   renderInvestTab();
   toast('Registo eliminado.','info');
+}
+
+// ── DEFINIÇÕES — CATEGORIAS ───────────────────────────────────────────────────
+
+function renderDefinicoes() {
+  renderCatList('Despesa');
+  renderCatList('Receita');
+}
+
+function renderCatList(tipo) {
+  const cats  = tipo === 'Despesa' ? CATS_DESPESA : CATS_RECEITA;
+  const deflt = tipo === 'Despesa' ? CATS_DESPESA_DEFAULT : CATS_RECEITA_DEFAULT;
+  const listId  = tipo === 'Despesa' ? 'catDespesaList'  : 'catReceitaList';
+  const countId = tipo === 'Despesa' ? 'catDespesaCount' : 'catReceitaCount';
+
+  document.getElementById(countId).textContent = cats.length + ' categorias';
+
+  document.getElementById(listId).innerHTML = cats.map((cat, i) => {
+    const isDefault = deflt.includes(cat);
+    return `
+      <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid rgba(48,54,61,.4)">
+        <span style="font-size:20px;width:28px;text-align:center">${CAT_ICONS[cat]||'📌'}</span>
+        <span style="flex:1;font-weight:500;font-size:13px">${cat}</span>
+        ${isDefault
+          ? `<span style="font-size:11px;color:var(--text-dim)">predefinida</span>`
+          : `<button class="btn btn-danger btn-icon btn-sm" onclick="deleteCat('${tipo}','${cat}')" title="Eliminar">
+               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/></svg>
+             </button>`}
+      </div>`;
+  }).join('');
+}
+
+function addCatDespesa() {
+  const emoji = document.getElementById('newCatDespesaEmoji').value.trim() || '📌';
+  const nome  = document.getElementById('newCatDespesaNome').value.trim();
+  if (!nome) return toast('Escreve o nome da categoria.','error');
+  if (CATS_DESPESA.includes(nome)) return toast('Essa categoria já existe.','error');
+  CATS_DESPESA.push(nome);
+  CAT_ICONS[nome] = emoji;
+  document.getElementById('newCatDespesaEmoji').value = '';
+  document.getElementById('newCatDespesaNome').value  = '';
+  scheduleSync();
+  renderDefinicoes();
+  // Refresh category dropdowns
+  fillSelect(document.getElementById('movCat'), catsForTipo(activeTipo));
+  fillSelect(document.getElementById('budgetCat'), CATS_DESPESA);
+  toast(`Categoria "${nome}" adicionada!`, 'success');
+}
+
+function addCatReceita() {
+  const emoji = document.getElementById('newCatReceitaEmoji').value.trim() || '📌';
+  const nome  = document.getElementById('newCatReceitaNome').value.trim();
+  if (!nome) return toast('Escreve o nome da categoria.','error');
+  if (CATS_RECEITA.includes(nome)) return toast('Essa categoria já existe.','error');
+  CATS_RECEITA.push(nome);
+  CAT_ICONS[nome] = emoji;
+  document.getElementById('newCatReceitaEmoji').value = '';
+  document.getElementById('newCatReceitaNome').value  = '';
+  scheduleSync();
+  renderDefinicoes();
+  fillSelect(document.getElementById('movCat'), catsForTipo(activeTipo));
+  toast(`Categoria "${nome}" adicionada!`, 'success');
+}
+
+function deleteCat(tipo, nome) {
+  if (!confirm(`Eliminar a categoria "${nome}"? As transações com esta categoria ficam com "Outros".`)) return;
+  if (tipo === 'Despesa') {
+    CATS_DESPESA = CATS_DESPESA.filter(c => c !== nome);
+  } else {
+    CATS_RECEITA = CATS_RECEITA.filter(c => c !== nome);
+  }
+  // Reassign existing transactions
+  txs = txs.map(t => t.cat === nome ? { ...t, cat: 'Outros' } : t);
+  delete CAT_ICONS[nome];
+  scheduleSync();
+  renderDefinicoes();
+  fillSelect(document.getElementById('movCat'), catsForTipo(activeTipo));
+  fillSelect(document.getElementById('budgetCat'), CATS_DESPESA);
+  toast(`Categoria "${nome}" eliminada.`, 'info');
 }
 
 // ── PIN / AUTH ────────────────────────────────────────────────────────────────
