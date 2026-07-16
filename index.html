@@ -838,7 +838,9 @@
               <div class="tab" data-tipo="Transferência">🔵 Transferência</div>
             </div>
           </div>
-          <div style="display:flex;flex-direction:column;gap:16px">
+
+          <!-- Despesa / Receita form -->
+          <div id="movFormNormal" style="display:flex;flex-direction:column;gap:16px">
             <div class="form-grid">
               <div class="form-group">
                 <label class="form-label">Valor (€)</label>
@@ -870,6 +872,46 @@
             <button class="btn btn-primary" style="align-self:flex-start;margin-top:4px" id="saveMovBtn">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
               Guardar
+            </button>
+          </div>
+
+          <!-- Transferência form -->
+          <div id="movFormTransf" style="display:none;flex-direction:column;gap:16px">
+            <div class="form-grid">
+              <div class="form-group">
+                <label class="form-label">Valor (€)</label>
+                <input type="number" step="0.01" min="0" id="transfValor" class="form-control" placeholder="0,00">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Data</label>
+                <input type="date" id="transfData" class="form-control">
+              </div>
+            </div>
+            <div class="form-grid">
+              <div class="form-group">
+                <label class="form-label">Conta de origem</label>
+                <select id="transfOrigem" class="form-control"></select>
+              </div>
+              <div style="display:flex;align-items:center;justify-content:center;padding-top:24px;font-size:22px">→</div>
+              <div class="form-group">
+                <label class="form-label">Conta de destino</label>
+                <select id="transfDestino" class="form-control"></select>
+              </div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Descrição (opcional)</label>
+              <input type="text" id="transfDesc" class="form-control" placeholder="Ex: Reforço do Revolut">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Notas (opcional)</label>
+              <textarea id="transfNotas" class="form-control" rows="2" style="resize:vertical" placeholder="Notas adicionais..."></textarea>
+            </div>
+            <div style="padding:12px;background:var(--accent-dim);border:1px solid rgba(0,200,150,.2);border-radius:var(--radius-sm);font-size:13px;color:var(--text-muted)">
+              💡 Serão criadas automaticamente duas entradas: saída na conta de origem e entrada na conta de destino.
+            </div>
+            <button class="btn btn-primary" style="align-self:flex-start;margin-top:4px" onclick="saveTransferencia()">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+              Registar transferência
             </button>
           </div>
         </div>
@@ -1222,6 +1264,8 @@
           <div style="display:flex;flex-direction:column;gap:16px">
             <!-- Saldos por conta -->
             <div class="card" id="contasSummary"></div>
+            <!-- PPR & Investimentos -->
+            <div class="card" id="contasAtivosCard"></div>
             <!-- Saldo total card -->
             <div class="card" id="contasTotalCard"></div>
           </div>
@@ -1456,37 +1500,51 @@ const SAMPLE_TXS = [
 
 function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2,6); }
 
-// ── GOOGLE SHEETS SYNC ────────────────────────────────────────────────────────
+// ── API ───────────────────────────────────────────────────────────────────────
 
-const GS_URL = 'https://script.google.com/macros/s/AKfycbxrq1WLbqU7FqL3M0Q0LuXkWEUG8jI7Nh-sU71yquEneJ9PccQEHpxaTkURU0wlQDDt/exec';
+const API_URL = 'https://cashflow-server-yoph.onrender.com';
+let authToken = null;
+
+async function api(method, path, body) {
+  const opts = {
+    method,
+    headers: {
+      'Content-Type': 'application/json',
+      ...(authToken ? { 'Authorization': `Bearer ${authToken}` } : {})
+    }
+  };
+  if (body) opts.body = JSON.stringify(body);
+  const res = await fetch(API_URL + path, opts);
+  const json = await res.json();
+  if (!res.ok) throw new Error(json.error || `Erro ${res.status}`);
+  return json;
+}
 
 // ── PROFILES ──────────────────────────────────────────────────────────────────
 
-const PROFILES_DEFAULT = {
-  rita:    { name: 'Rita Andrade',   initials: 'RA', role: 'Administradora', color: 'linear-gradient(135deg,#00c896,#00a87a)', prefix: 'rita',    isAdmin: true },
-  micaela: { name: 'Micaela Sousa', initials: 'MS', role: 'Utilizadora',    color: 'linear-gradient(135deg,#bc8cff,#7c3aed)', prefix: 'micaela', isAdmin: false }
-};
-
-function loadProfiles() {
-  const stored = localStorage.getItem('cf_profiles');
-  return stored ? JSON.parse(stored) : { ...PROFILES_DEFAULT };
-}
-function saveProfiles(p) { localStorage.setItem('cf_profiles', JSON.stringify(p)); }
-
-let PROFILES = loadProfiles();
+let PROFILES = {};       // id → profile object
 let activeProfile = null;
 
-let txs           = [];
-let budgets       = {};
-let saldosIniciais= {};
-let pprEntries    = [];
-let investEntries = [];
-let activeTipo    = 'Despesa';
-let activePeriod  = 'current';
-let charts        = {};
-let syncPending   = false;
+async function loadProfilesFromAPI() {
+  const data = await api('GET', '/profiles');
+  PROFILES = {};
+  data.forEach(p => { PROFILES[p.id] = { ...p, isAdmin: p.is_admin }; });
+}
 
-// Show/hide a global loading overlay while syncing
+// ── DATA STATE ────────────────────────────────────────────────────────────────
+
+let txs            = [];
+let budgets        = {};
+let saldosIniciais = {};
+let pprEntries     = [];
+let investEntries  = [];
+let contasDB       = []; // [{id, nome}]
+let activeTipo     = 'Despesa';
+let activePeriod   = 'current';
+let charts         = {};
+
+// ── SYNC OVERLAY ──────────────────────────────────────────────────────────────
+
 function showSyncOverlay(msg) {
   let el = document.getElementById('syncOverlay');
   if (!el) {
@@ -1506,115 +1564,72 @@ function hideSyncOverlay() {
   if (el) el.style.display = 'none';
 }
 
-async function gsRead() {
-  const p = activeProfile.prefix;
-  const res = await fetch(GS_URL + `?action=read&profile=${p}`, { method: 'GET' });
-  const json = await res.json();
-  if (!json.ok) throw new Error(json.error || 'Erro ao ler dados');
-  return json.data;
-}
+// ── LOAD ALL DATA ─────────────────────────────────────────────────────────────
 
-async function gsWrite() {
-  const p = activeProfile.prefix;
-  const categorias = [
-    ...CATS_DESPESA.map(nome => ({ nome, tipo:'Despesa', emoji: CAT_ICONS[nome]||'📌' })),
-    ...CATS_RECEITA.map(nome => ({ nome, tipo:'Receita', emoji: CAT_ICONS[nome]||'📌' }))
-  ];
-  const payload = {
-    profile: p,
-    transacoes:  txs.map(t => ({ id:t.id, tipo:t.tipo, valor:t.valor, data:t.data, desc:t.desc, cat:t.cat, conta:t.conta, notas:t.notas||'' })),
-    budgets:     Object.entries(budgets).map(([cat,limite]) => ({ cat, limite })),
-    saldos:      Object.entries(saldosIniciais).map(([conta,valor]) => ({ conta, valor })),
-    ppr:         pprEntries,
-    invest:      investEntries,
-    categorias,
-    contas:      CONTAS.map(nome => ({ nome }))
-  };
-  const res = await fetch(GS_URL + '?action=write&data=' + encodeURIComponent(JSON.stringify(payload)), { method: 'GET' });
-  const json = await res.json();
-  if (!json.ok) throw new Error(json.error || 'Erro ao guardar dados');
-}
+async function loadAllData() {
+  const [txData, contasData, budgetsData, saldosData, pprData, investData, catsData] = await Promise.all([
+    api('GET', '/transacoes'),
+    api('GET', '/contas'),
+    api('GET', '/budgets'),
+    api('GET', '/saldos'),
+    api('GET', '/ppr'),
+    api('GET', '/investimentos'),
+    api('GET', '/categorias')
+  ]);
 
-function parseSheetData(raw) {
-  // transacoes
-  txs = (raw.transacoes || []).map(r => ({
-    id:    String(r.id    || uid()),
-    tipo:  String(r.tipo  || 'Despesa'),
-    valor: parseFloat(r.valor) || 0,
-    data:  String(r.data  || ''),
-    desc:  String(r.desc  || ''),
-    cat:   String(r.cat   || 'Outros'),
-    conta: String(r.conta || 'Revolut'),
-    notas: String(r.notas || '')
-  })).filter(t => t.data && t.valor);
-  txs.sort((a,b) => b.data.localeCompare(a.data));
+  // Transações
+  txs = txData.map(t => ({
+    id: t.id, tipo: t.tipo, valor: parseFloat(t.valor),
+    data: t.data, desc: t.descricao, cat: t.cat,
+    conta: t.conta, notas: t.notas || '', transfLink: t.transf_link
+  })).sort((a,b) => b.data.localeCompare(a.data));
 
-  // budgets
+  // Contas
+  contasDB = contasData;
+  CONTAS = contasDB.map(c => c.nome);
+  if (CONTAS.length === 0) CONTAS = [...CONTAS_DEFAULT];
+
+  // Budgets
   budgets = {};
-  (raw.budgets || []).forEach(r => { if (r.cat) budgets[String(r.cat)] = parseFloat(r.limite) || 0; });
+  budgetsData.forEach(b => { budgets[b.cat] = parseFloat(b.limite); });
 
-  // saldos iniciais
+  // Saldos iniciais
   saldosIniciais = {};
-  (raw.saldos || []).forEach(r => { if (r.conta) saldosIniciais[String(r.conta)] = parseFloat(r.valor) || 0; });
+  saldosData.forEach(s => { saldosIniciais[s.conta] = parseFloat(s.valor); });
 
-  // ppr
-  pprEntries = (raw.ppr || []).map(r => ({
-    data:       String(r.data || ''),
-    valorTotal: parseFloat(r.valorTotal) || 0,
-    contrib:    parseFloat(r.contrib)    || 0,
-    notas:      String(r.notas || '')
-  })).filter(r => r.data);
+  // PPR
+  pprEntries = pprData.map(r => ({
+    id: r.id, data: r.data, valorTotal: parseFloat(r.valor_total),
+    contrib: parseFloat(r.contrib), notas: r.notas || ''
+  }));
 
-  // invest
-  investEntries = (raw.invest || []).map(r => ({
-    data:       String(r.data || ''),
-    valorTotal: parseFloat(r.valorTotal) || 0,
-    aporte:     parseFloat(r.aporte)     || 0,
-    plataforma: String(r.plataforma || ''),
-    notas:      String(r.notas || '')
-  })).filter(r => r.data);
+  // Investimentos
+  investEntries = investData.map(r => ({
+    id: r.id, data: r.data, valorTotal: parseFloat(r.valor_total),
+    aporte: parseFloat(r.aporte), plataforma: r.plataforma || '', notas: r.notas || ''
+  }));
 
-  // custom categories
-  if (raw.categorias && raw.categorias.length > 0) {
-    const desp = raw.categorias.filter(c => c.tipo === 'Despesa').map(c => String(c.nome));
-    const rec  = raw.categorias.filter(c => c.tipo === 'Receita').map(c => String(c.nome));
+  // Categorias
+  if (catsData.length > 0) {
+    const desp = catsData.filter(c => c.tipo === 'Despesa').map(c => c.nome);
+    const rec  = catsData.filter(c => c.tipo === 'Receita').map(c => c.nome);
     if (desp.length > 0) CATS_DESPESA = desp;
     if (rec.length  > 0) CATS_RECEITA = rec;
-    raw.categorias.forEach(c => {
-      if (c.nome && c.emoji) CAT_ICONS[String(c.nome)] = String(c.emoji);
-    });
-  }
-
-  // custom contas
-  if (raw.contas && raw.contas.length > 0) {
-    const nomes = raw.contas.map(c => String(c.nome)).filter(Boolean);
-    if (nomes.length > 0) CONTAS = nomes;
+    catsData.forEach(c => { if (c.nome && c.emoji) CAT_ICONS[c.nome] = c.emoji; });
   }
 }
 
-// Debounced auto-save — waits 1.5s after last change before writing
-let saveTimer = null;
-function scheduleSync() {
-  clearTimeout(saveTimer);
-  saveTimer = setTimeout(async () => {
-    try {
-      await gsWrite();
-      toast('Guardado na cloud ☁️', 'success');
-    } catch(e) {
-      toast('Erro ao guardar: ' + e.message, 'error');
-    }
-  }, 1500);
-}
+// ── SAVE FUNCTIONS ────────────────────────────────────────────────────────────
 
-// Replace old save functions — all now trigger a cloud sync
-function saveData(data)     { txs = data; scheduleSync(); }
-function saveBudgets(b)     { budgets = b; scheduleSync(); }
-function savePPR(d)         { pprEntries = d; scheduleSync(); }
-function saveInvest(d)      { investEntries = d; scheduleSync(); }
-function saveSaldosIniciais_storage() { scheduleSync(); }
+async function saveData(newTxs) { txs = newTxs; /* saved individually via API */ }
+async function saveBudgets(b)   { budgets = b; }
+async function savePPR(d)       { pprEntries = d; }
+async function saveInvest(d)    { investEntries = d; }
+function saveSaldosIniciais_storage() {}
+function scheduleSync() {} // no-op, all saves go directly via API
 
 // ── CONTAS E SALDOS INICIAIS ──────────────────────────────────────────────────
-const CONTAS_DEFAULT = ['Revolut','Crédito Agrícola','Caixa','MBWay','Poupança'];
+const CONTAS_DEFAULT = ['Revolut','Crédito Agrícola','MBWay','Poupança'];
 let CONTAS = [...CONTAS_DEFAULT];
 
 function contaIcon(nome) {
@@ -1750,14 +1765,22 @@ document.querySelectorAll('#movTabs .tab').forEach(tab=>{
     document.querySelectorAll('#movTabs .tab').forEach(t=>t.classList.remove('active'));
     tab.classList.add('active');
     activeTipo = tab.dataset.tipo;
-    fillSelect(document.getElementById('movCat'), catsForTipo(activeTipo));
+    const isTransf = activeTipo === 'Transferência';
+    document.getElementById('movFormNormal').style.display = isTransf ? 'none' : 'flex';
+    document.getElementById('movFormTransf').style.display = isTransf ? 'flex' : 'none';
+    if (!isTransf) fillSelect(document.getElementById('movCat'), catsForTipo(activeTipo));
+    if (isTransf) {
+      fillSelect(document.getElementById('transfOrigem'),  CONTAS);
+      fillSelect(document.getElementById('transfDestino'), CONTAS, CONTAS[1] || CONTAS[0]);
+    }
   });
 });
 
 fillSelect(document.getElementById('movCat'), CATS_DESPESA);
 document.getElementById('movData').value = new Date().toISOString().slice(0,10);
+document.getElementById('transfData').value = new Date().toISOString().slice(0,10);
 
-document.getElementById('saveMovBtn').addEventListener('click',()=>{
+document.getElementById('saveMovBtn').addEventListener('click', async ()=>{
   const valor = parseFloat(document.getElementById('movValor').value);
   const data  = document.getElementById('movData').value;
   const desc  = document.getElementById('movDesc').value.trim();
@@ -1767,16 +1790,43 @@ document.getElementById('saveMovBtn').addEventListener('click',()=>{
   if (!valor || valor<=0) return toast('Introduz um valor válido.','error');
   if (!data) return toast('Seleciona uma data.','error');
   if (!desc) return toast('A descrição é obrigatória.','error');
-  txs.push({id:uid(), tipo:activeTipo, valor, data, desc, cat, conta, notas});
-  txs.sort((a,b)=>b.data.localeCompare(a.data));
-  saveData(txs);
-  // reset
-  document.getElementById('movValor').value='';
-  document.getElementById('movDesc').value='';
-  document.getElementById('movNotas').value='';
-  document.getElementById('movData').value=new Date().toISOString().slice(0,10);
-  toast('Transação guardada com sucesso!','success');
+  try {
+    const saved = await api('POST', '/transacoes', { tipo:activeTipo, valor, data, descricao:desc, cat, conta, notas });
+    txs = [{ id:saved[0].id, tipo:activeTipo, valor, data, desc, cat, conta, notas }, ...txs];
+    document.getElementById('movValor').value='';
+    document.getElementById('movDesc').value='';
+    document.getElementById('movNotas').value='';
+    document.getElementById('movData').value=new Date().toISOString().slice(0,10);
+    toast('Transação guardada! ✅','success');
+    renderDashboard();
+  } catch(e) { toast('Erro ao guardar: '+e.message,'error'); }
 });
+
+async function saveTransferencia() {
+  const valor  = parseFloat(document.getElementById('transfValor').value);
+  const data   = document.getElementById('transfData').value;
+  const origem = document.getElementById('transfOrigem').value;
+  const dest   = document.getElementById('transfDestino').value;
+  const desc   = document.getElementById('transfDesc').value.trim() || `Transferência ${origem} → ${dest}`;
+  const notas  = document.getElementById('transfNotas').value.trim();
+  if (!valor || valor<=0) return toast('Introduz um valor válido.','error');
+  if (!data)  return toast('Seleciona uma data.','error');
+  if (origem === dest) return toast('A conta de origem e destino têm de ser diferentes.','error');
+  try {
+    const saved = await api('POST', '/transacoes', [
+      { tipo:'Despesa', valor, data, descricao:desc, cat:'Transferência', conta:origem, notas },
+      { tipo:'Receita', valor, data, descricao:desc, cat:'Transferência', conta:dest,   notas }
+    ]);
+    saved.forEach(s => txs.unshift({ id:s.id, tipo:s.tipo, valor, data, desc, cat:'Transferência', conta:s.conta, notas }));
+    txs.sort((a,b)=>b.data.localeCompare(a.data));
+    document.getElementById('transfValor').value='';
+    document.getElementById('transfDesc').value='';
+    document.getElementById('transfNotas').value='';
+    document.getElementById('transfData').value=new Date().toISOString().slice(0,10);
+    toast(`Transferência de ${fmt(valor)} registada: ${origem} → ${dest}`, 'success');
+    renderDashboard();
+  } catch(e) { toast('Erro: '+e.message,'error'); }
+}
 
 // ── DASHBOARD ────────────────────────────────────────────────────────────────
 
@@ -1787,11 +1837,13 @@ function renderDashboard() {
   const cmTxs = txs.filter(t=>t.data.startsWith(cm));
   const pmTxs = txs.filter(t=>t.data.startsWith(pm));
 
-  const income = cmTxs.filter(t=>t.tipo==='Receita').reduce((s,t)=>s+t.valor,0);
-  const expense = cmTxs.filter(t=>t.tipo==='Despesa').reduce((s,t)=>s+t.valor,0);
-  const txBalance = txs.filter(t=>t.tipo!=='Transferência').reduce((s,t)=>t.tipo==='Receita'?s+t.valor:s-t.valor,0);
+  const income = cmTxs.filter(t=>t.tipo==='Receita'&&t.cat!=='Transferência').reduce((s,t)=>s+t.valor,0);
+  const expense = cmTxs.filter(t=>t.tipo==='Despesa'&&t.cat!=='Transferência').reduce((s,t)=>s+t.valor,0);
+  const txBalance = txs.filter(t=>t.cat!=='Transferência').reduce((s,t)=>t.tipo==='Receita'?s+t.valor:s-t.valor,0);
   const initialTotal = Object.values(saldosIniciais).reduce((s,v)=>s+(parseFloat(v)||0),0);
-  const balance = initialTotal + txBalance;
+  const lastPPRval    = [...pprEntries].sort((a,b)=>b.data.localeCompare(a.data))[0]?.valorTotal || 0;
+  const lastInvestval = [...investEntries].sort((a,b)=>b.data.localeCompare(a.data))[0]?.valorTotal || 0;
+  const balance = initialTotal + txBalance + parseFloat(lastPPRval) + parseFloat(lastInvestval);
   const saving = income>0 ? ((income-expense)/income*100) : 0;
 
   const pmExpense = pmTxs.filter(t=>t.tipo==='Despesa').reduce((s,t)=>s+t.valor,0);
@@ -1799,9 +1851,9 @@ function renderDashboard() {
 
   document.getElementById('kpiGrid').innerHTML = `
     <div class="card kpi">
-      <div class="card-title">Saldo Atual</div>
+      <div class="card-title">Património Total</div>
       <div class="kpi-value" style="color:${balance>=0?'var(--accent)':'var(--danger)'}">${fmt(balance)}</div>
-      <div class="kpi-change">Total acumulado</div>
+      <div class="kpi-change">Contas + PPR + Investimentos</div>
     </div>
     <div class="card kpi">
       <div class="card-title">Receitas este mês</div>
@@ -1928,8 +1980,8 @@ function filterAndRenderTxs() {
     return;
   }
 
-  const totalIncome = filtered.filter(t=>t.tipo==='Receita').reduce((s,t)=>s+t.valor,0);
-  const totalExpense = filtered.filter(t=>t.tipo==='Despesa').reduce((s,t)=>s+t.valor,0);
+  const totalIncome = filtered.filter(t=>t.tipo==='Receita'&&t.cat!=='Transferência').reduce((s,t)=>s+t.valor,0);
+  const totalExpense = filtered.filter(t=>t.tipo==='Despesa'&&t.cat!=='Transferência').reduce((s,t)=>s+t.valor,0);
 
   wrap.innerHTML = `
     <div style="display:flex;gap:24px;margin-bottom:16px;padding-bottom:14px;border-bottom:1px solid var(--border)">
@@ -2010,35 +2062,38 @@ function updateEditCats() {
   const tipo = document.getElementById('editTipo').value;
   fillSelect(document.getElementById('editCat'), catsForTipo(tipo));
 }
-function saveEdit() {
+async function saveEdit() {
   const id = document.getElementById('editId').value;
-  const idx = txs.findIndex(x=>x.id===id);
-  if (idx<0) return;
-  txs[idx] = {
-    id,
-    tipo: document.getElementById('editTipo').value,
-    valor: parseFloat(document.getElementById('editValor').value),
-    data: document.getElementById('editData').value,
-    desc: document.getElementById('editDesc').value.trim(),
-    cat: document.getElementById('editCat').value,
-    conta: document.getElementById('editConta').value,
-    notas: document.getElementById('editNotas').value.trim(),
+  const body = {
+    tipo:      document.getElementById('editTipo').value,
+    valor:     parseFloat(document.getElementById('editValor').value),
+    data:      document.getElementById('editData').value,
+    descricao: document.getElementById('editDesc').value.trim(),
+    cat:       document.getElementById('editCat').value,
+    conta:     document.getElementById('editConta').value,
+    notas:     document.getElementById('editNotas').value.trim(),
   };
-  txs.sort((a,b)=>b.data.localeCompare(a.data));
-  saveData(txs);
-  closeModal();
-  renderTransacoes();
-  toast('Transação atualizada.','success');
+  try {
+    await api('PUT', '/transacoes/'+id, body);
+    const idx = txs.findIndex(x=>x.id===id);
+    if (idx>=0) txs[idx] = { ...txs[idx], ...body, desc: body.descricao };
+    txs.sort((a,b)=>b.data.localeCompare(a.data));
+    closeModal();
+    renderTransacoes();
+    toast('Transação atualizada.','success');
+  } catch(e) { toast('Erro: '+e.message,'error'); }
 }
 
 document.getElementById('editModal').addEventListener('click',e=>{ if(e.target===e.currentTarget)closeModal(); });
 
-function deleteTx(id) {
+async function deleteTx(id) {
   if (!confirm('Eliminar esta transação?')) return;
-  txs = txs.filter(t=>t.id!==id);
-  saveData(txs);
-  renderTransacoes();
-  toast('Transação eliminada.','info');
+  try {
+    await api('DELETE', '/transacoes/'+id);
+    txs = txs.filter(t=>t.id!==id);
+    renderTransacoes();
+    toast('Transação eliminada.','info');
+  } catch(e) { toast('Erro: '+e.message,'error'); }
 }
 
 // ── ANÁLISE ──────────────────────────────────────────────────────────────────
@@ -2069,8 +2124,8 @@ function chartBaseOpts() {
 
 function renderAnalise() {
   const filtered = txsInPeriod(activePeriod);
-  const income = filtered.filter(t=>t.tipo==='Receita').reduce((s,t)=>s+t.valor,0);
-  const expense = filtered.filter(t=>t.tipo==='Despesa').reduce((s,t)=>s+t.valor,0);
+  const income = filtered.filter(t=>t.tipo==='Receita'&&t.cat!=='Transferência').reduce((s,t)=>s+t.valor,0);
+  const expense = filtered.filter(t=>t.tipo==='Despesa'&&t.cat!=='Transferência').reduce((s,t)=>s+t.valor,0);
   const saving = income>0 ? ((income-expense)/income*100):0;
 
   document.getElementById('analiseKpi').innerHTML = `
@@ -2107,7 +2162,7 @@ function renderAnalise() {
 
   // Line (saldo)
   const saldoData = months.map(m=>{
-    const allUpTo = txs.filter(t=>t.data.slice(0,7)<=m&&t.tipo!=='Transferência');
+    const allUpTo = txs.filter(t=>t.data.slice(0,7)<=m&&t.cat!=='Transferência');
     return allUpTo.reduce((s,t)=>t.tipo==='Receita'?s+t.valor:s-t.valor,0);
   });
   destroyChart('analiseLine');
@@ -2123,7 +2178,7 @@ function renderAnalise() {
 
   // Donut
   const catMap = {};
-  filtered.filter(t=>t.tipo==='Despesa').forEach(t=>{ catMap[t.cat]=(catMap[t.cat]||0)+t.valor; });
+  filtered.filter(t=>t.tipo==='Despesa'&&t.cat!=='Transferência').forEach(t=>{ catMap[t.cat]=(catMap[t.cat]||0)+t.valor; });
   const sorted = Object.entries(catMap).sort((a,b)=>b[1]-a[1]).slice(0,7);
 
   destroyChart('analiseDonut');
@@ -2168,15 +2223,17 @@ function renderAnalise() {
 
 fillSelect(document.getElementById('budgetCat'), CATS_DESPESA);
 
-document.getElementById('saveBudgetBtn').addEventListener('click',()=>{
+document.getElementById('saveBudgetBtn').addEventListener('click', async ()=>{
   const cat = document.getElementById('budgetCat').value;
   const val = parseFloat(document.getElementById('budgetValor').value);
   if (!val||val<=0) return toast('Introduz um valor válido.','error');
-  budgets[cat] = val;
-  saveBudgets(budgets);
-  document.getElementById('budgetValor').value='';
-  renderOrcamentos();
-  toast(`Orçamento de ${cat} guardado.`,'success');
+  try {
+    await api('POST', '/budgets', { cat, limite: val });
+    budgets[cat] = val;
+    document.getElementById('budgetValor').value='';
+    renderOrcamentos();
+    toast(`Orçamento de ${cat} guardado.`,'success');
+  } catch(e) { toast('Erro: '+e.message,'error'); }
 });
 
 function renderOrcamentos() {
@@ -2225,11 +2282,16 @@ function renderOrcamentos() {
     }).join('');
 }
 
-function deleteBudget(cat) {
-  delete budgets[cat];
-  saveBudgets(budgets);
-  renderOrcamentos();
-  toast('Orçamento removido.','info');
+async function deleteBudget(cat) {
+  // Find budget id — we need to reload budgets to get IDs
+  try {
+    const allBudgets = await api('GET', '/budgets');
+    const found = allBudgets.find(b => b.cat === cat);
+    if (found) await api('DELETE', '/budgets/'+found.id);
+    delete budgets[cat];
+    renderOrcamentos();
+    toast('Orçamento removido.','info');
+  } catch(e) { toast('Erro: '+e.message,'error'); }
 }
 
 // ── EXPORT ───────────────────────────────────────────────────────────────────
@@ -2634,18 +2696,61 @@ function renderContas() {
     }).join('')}
   `;
 
-  // Total card
-  const totalInicial = Object.values(saldosIniciais).reduce((s,v)=>s+(parseFloat(v)||0),0);
-  const totalTx = txs.filter(t=>t.tipo!=='Transferência').reduce((s,t)=>t.tipo==='Receita'?s+t.valor:s-t.valor,0);
-  const totalGeral = totalInicial + totalTx;
-  document.getElementById('contasTotalCard').innerHTML = `
-    <div style="display:flex;justify-content:space-between;align-items:center">
-      <div>
-        <div style="font-size:12px;color:var(--text-muted);font-weight:600;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Saldo total</div>
-        <div style="font-size:28px;font-family:'Roboto Mono',monospace;font-weight:500;color:${totalGeral>=0?'var(--accent)':'var(--danger)'}">${fmt(totalGeral)}</div>
-        <div style="font-size:12px;color:var(--text-muted);margin-top:4px">Saldos iniciais + movimentos registados</div>
+  // PPR & Investimentos ativos
+  const lastPPR    = [...pprEntries].sort((a,b)=>b.data.localeCompare(a.data))[0];
+  const lastInvest = [...investEntries].sort((a,b)=>b.data.localeCompare(a.data))[0];
+  const valorPPR    = lastPPR    ? parseFloat(lastPPR.valorTotal)    || 0 : 0;
+  const valorInvest = lastInvest ? parseFloat(lastInvest.valorTotal) || 0 : 0;
+
+  document.getElementById('contasAtivosCard').innerHTML = `
+    <div class="section-header" style="margin-bottom:12px"><h2>Poupança & Investimentos</h2></div>
+    <div class="summary-row">
+      <div style="display:flex;align-items:center;gap:10px">
+        <div style="width:36px;height:36px;border-radius:10px;background:var(--surface2);display:flex;align-items:center;justify-content:center;font-size:18px">🏦</div>
+        <div>
+          <div style="font-weight:600;font-size:14px">PPR</div>
+          <div style="font-size:11px;color:var(--text-muted)">${lastPPR ? 'Último registo: ' + fmtDate(lastPPR.data) : 'Sem registos ainda'}</div>
+        </div>
       </div>
-      <div style="font-size:40px">💰</div>
+      <div class="amount receita" style="font-size:16px">${fmt(valorPPR)}</div>
+    </div>
+    <div class="summary-row">
+      <div style="display:flex;align-items:center;gap:10px">
+        <div style="width:36px;height:36px;border-radius:10px;background:var(--surface2);display:flex;align-items:center;justify-content:center;font-size:18px">📈</div>
+        <div>
+          <div style="font-weight:600;font-size:14px">Investimentos</div>
+          <div style="font-size:11px;color:var(--text-muted)">${lastInvest ? 'Último registo: ' + fmtDate(lastInvest.data) : 'Sem registos ainda'}</div>
+        </div>
+      </div>
+      <div class="amount receita" style="font-size:16px">${fmt(valorInvest)}</div>
+    </div>
+    ${(valorPPR === 0 && valorInvest === 0) ? `<div style="font-size:12px;color:var(--text-muted);margin-top:8px">💡 Regista valores em <strong>PPR & Investimentos</strong> para ver aqui.</div>` : ''}
+  `;
+
+  // Total card — inclui contas + PPR + investimentos
+  const totalInicial = Object.values(saldosIniciais).reduce((s,v)=>s+(parseFloat(v)||0),0);
+  const totalTx = txs.filter(t=>t.cat!=='Transferência').reduce((s,t)=>t.tipo==='Receita'?s+t.valor:s-t.valor,0);
+  const totalContas = totalInicial + totalTx;
+  const totalPatrimonio = totalContas + valorPPR + valorInvest;
+
+  document.getElementById('contasTotalCard').innerHTML = `
+    <div style="margin-bottom:12px">
+      <div style="font-size:12px;color:var(--text-muted);font-weight:600;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Património total</div>
+      <div style="font-size:30px;font-family:'Roboto Mono',monospace;font-weight:500;color:${totalPatrimonio>=0?'var(--accent)':'var(--danger)'}">${fmt(totalPatrimonio)}</div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:6px;padding-top:12px;border-top:1px solid var(--border)">
+      <div style="display:flex;justify-content:space-between;font-size:13px">
+        <span style="color:var(--text-muted)">💳 Saldo em contas</span>
+        <span style="font-family:'Roboto Mono',monospace;font-weight:500">${fmt(totalContas)}</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:13px">
+        <span style="color:var(--text-muted)">🏦 PPR</span>
+        <span style="font-family:'Roboto Mono',monospace;font-weight:500">${fmt(valorPPR)}</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:13px">
+        <span style="color:var(--text-muted)">📈 Investimentos</span>
+        <span style="font-family:'Roboto Mono',monospace;font-weight:500">${fmt(valorInvest)}</span>
+      </div>
     </div>
   `;
 
@@ -2655,55 +2760,62 @@ function renderContas() {
 function renderContaManageList() {
   const el = document.getElementById('contaManageList');
   if (!el) return;
-  el.innerHTML = CONTAS.map(c => {
-    const isDefault = CONTAS_DEFAULT.includes(c);
-    return `
-      <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid rgba(48,54,61,.4)">
-        <span style="font-size:18px;width:26px;text-align:center">${contaIcon(c)}</span>
-        <span style="flex:1;font-weight:500;font-size:13px">${c}</span>
-        ${isDefault
-          ? `<span style="font-size:11px;color:var(--text-dim)">predefinida</span>`
-          : `<button class="btn btn-danger btn-icon btn-sm" onclick="deleteConta('${c}')" title="Remover conta">
-               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/></svg>
-             </button>`}
-      </div>`;
-  }).join('');
+  el.innerHTML = CONTAS.map(c => `
+    <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid rgba(48,54,61,.4)">
+      <span style="font-size:18px;width:26px;text-align:center">${contaIcon(c)}</span>
+      <span style="flex:1;font-weight:500;font-size:13px">${c}</span>
+      <button class="btn btn-danger btn-icon btn-sm" onclick="deleteConta('${c.replace(/'/g,"\\'")}')">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/></svg>
+      </button>
+    </div>`).join('');
 }
 
-function addConta() {
+async function addConta() {
   const el = document.getElementById('newContaNome');
   const nome = (el.value || '').trim();
   if (!nome) return toast('Escreve o nome do banco/conta.', 'error');
   if (CONTAS.map(c=>c.toLowerCase()).includes(nome.toLowerCase()))
     return toast('Essa conta já existe.', 'error');
-  CONTAS = [...CONTAS, nome];
-  el.value = '';
-  scheduleSync();
-  renderContas();
-  refreshAllContaDropdowns();
-  toast(`Conta "${nome}" adicionada! 🏦`, 'success');
+  try {
+    const saved = await api('POST', '/contas', { nome });
+    contasDB.push(saved);
+    CONTAS = contasDB.map(c => c.nome);
+    el.value = '';
+    renderContas();
+    refreshAllContaDropdowns();
+    toast(`Conta "${nome}" adicionada! 🏦`, 'success');
+  } catch(e) { toast('Erro: '+e.message,'error'); }
 }
 
-function deleteConta(nome) {
-  if (!confirm(`Remover a conta "${nome}"?\nAs transações existentes mantêm o nome da conta no histórico, mas deixa de aparecer nas opções.`)) return;
-  CONTAS = CONTAS.filter(c => c !== nome);
-  delete saldosIniciais[nome];
-  scheduleSync();
-  renderContas();
-  refreshAllContaDropdowns();
-  toast(`Conta "${nome}" removida.`, 'info');
+async function deleteConta(nome) {
+  if (!confirm(`Remover a conta "${nome}"?\nAs transações existentes mantêm o nome no histórico.`)) return;
+  const conta = contasDB.find(c => c.nome === nome);
+  if (!conta) return;
+  try {
+    await api('DELETE', '/contas/'+conta.id);
+    contasDB = contasDB.filter(c => c.id !== conta.id);
+    CONTAS = contasDB.map(c => c.nome);
+    delete saldosIniciais[nome];
+    renderContas();
+    refreshAllContaDropdowns();
+    toast(`Conta "${nome}" removida.`, 'info');
+  } catch(e) { toast('Erro: '+e.message,'error'); }
 }
 
-function saveSaldosIniciais() {
-  CONTAS.forEach(c => {
-    const el = document.getElementById('si-'+c.replace(/\s/g,'_'));
-    if (el && el.value !== '') saldosIniciais[c] = parseFloat(el.value) || 0;
+async function saveSaldosIniciais() {
+  const entries = CONTAS.map(c => {
+    const el = document.getElementById('si-'+c.replace(/\s/g,'_').replace(/[^a-zA-Z0-9_]/g,''));
+    const valor = el ? parseFloat(el.value) || 0 : (saldosIniciais[c] || 0);
+    saldosIniciais[c] = valor;
+    return { conta: c, valor };
   });
-  scheduleSync();
-  renderContas();
-  toast('Saldos iniciais guardados!', 'success');
+  try {
+    await api('POST', '/saldos', entries);
+    renderContas();
+    toast('Saldos iniciais guardados!', 'success');
+  } catch(e) { toast('Erro: '+e.message,'error'); }
 }
-function saveSaldosIniciais_storage() { localStorage.setItem('fp_saldos_iniciais', JSON.stringify(saldosIniciais)); }
+function saveSaldosIniciais_storage() {}
 
 // ── PPR & INVESTIMENTOS ───────────────────────────────────────────────────────
 
@@ -2796,29 +2908,36 @@ function renderPPRTab() {
       }).join('');
 }
 
-function savePPREntry() {
+async function savePPREntry() {
   const data       = document.getElementById('pprData').value;
   const valorTotal = parseFloat(document.getElementById('pprValorTotal').value);
   const contrib    = parseFloat(document.getElementById('pprContrib').value) || 0;
   const notas      = document.getElementById('pprNotas').value.trim();
   if (!data || !valorTotal) return toast('Preenche a data e o valor total.','error');
-  pprEntries.push({ data, valorTotal, contrib, notas });
-  pprEntries.sort((a,b)=>a.data.localeCompare(b.data));
-  savePPR(pprEntries);
-  document.getElementById('pprValorTotal').value = '';
-  document.getElementById('pprContrib').value = '';
-  document.getElementById('pprNotas').value = '';
-  document.getElementById('pprData').value = new Date().toISOString().slice(0,10);
-  renderPPRTab();
-  toast('Registo PPR guardado!','success');
+  try {
+    const saved = await api('POST', '/ppr', { data, valor_total: valorTotal, contrib, notas });
+    pprEntries.push({ id: saved.id, data, valorTotal, contrib, notas });
+    pprEntries.sort((a,b)=>a.data.localeCompare(b.data));
+    document.getElementById('pprValorTotal').value = '';
+    document.getElementById('pprContrib').value = '';
+    document.getElementById('pprNotas').value = '';
+    document.getElementById('pprData').value = new Date().toISOString().slice(0,10);
+    renderPPRTab();
+    if (document.getElementById('contasTotalCard')) renderContas();
+    toast('Registo PPR guardado!','success');
+  } catch(e) { toast('Erro: '+e.message,'error'); }
 }
 
-function deletePPREntry(idx) {
+async function deletePPREntry(idx) {
   if (!confirm('Eliminar este registo?')) return;
-  pprEntries.splice(idx,1);
-  savePPR(pprEntries);
-  renderPPRTab();
-  toast('Registo eliminado.','info');
+  const entry = pprEntries[idx];
+  try {
+    await api('DELETE', '/ppr/'+entry.id);
+    pprEntries.splice(idx,1);
+    renderPPRTab();
+    if (document.getElementById('contasTotalCard')) renderContas();
+    toast('Registo eliminado.','info');
+  } catch(e) { toast('Erro: '+e.message,'error'); }
 }
 
 function renderInvestTab() {
@@ -2889,31 +3008,38 @@ function renderInvestTab() {
       }).join('');
 }
 
-function saveInvestEntry() {
+async function saveInvestEntry() {
   const data       = document.getElementById('investData').value;
   const valorTotal = parseFloat(document.getElementById('investValorTotal').value);
   const aporte     = parseFloat(document.getElementById('investAporte').value) || 0;
   const plataforma = document.getElementById('investPlataforma').value.trim();
   const notas      = document.getElementById('investNotas').value.trim();
   if (!data || !valorTotal) return toast('Preenche a data e o valor total.','error');
-  investEntries.push({ data, valorTotal, aporte, plataforma, notas });
-  investEntries.sort((a,b)=>a.data.localeCompare(b.data));
-  saveInvest(investEntries);
-  document.getElementById('investValorTotal').value = '';
-  document.getElementById('investAporte').value = '';
-  document.getElementById('investPlataforma').value = '';
-  document.getElementById('investNotas').value = '';
-  document.getElementById('investData').value = new Date().toISOString().slice(0,10);
-  renderInvestTab();
-  toast('Registo de investimento guardado!','success');
+  try {
+    const saved = await api('POST', '/investimentos', { data, valor_total: valorTotal, aporte, plataforma, notas });
+    investEntries.push({ id: saved.id, data, valorTotal, aporte, plataforma, notas });
+    investEntries.sort((a,b)=>a.data.localeCompare(b.data));
+    document.getElementById('investValorTotal').value = '';
+    document.getElementById('investAporte').value = '';
+    document.getElementById('investPlataforma').value = '';
+    document.getElementById('investNotas').value = '';
+    document.getElementById('investData').value = new Date().toISOString().slice(0,10);
+    renderInvestTab();
+    if (document.getElementById('contasTotalCard')) renderContas();
+    toast('Registo de investimento guardado!','success');
+  } catch(e) { toast('Erro: '+e.message,'error'); }
 }
 
-function deleteInvestEntry(idx) {
+async function deleteInvestEntry(idx) {
   if (!confirm('Eliminar este registo?')) return;
-  investEntries.splice(idx,1);
-  saveInvest(investEntries);
-  renderInvestTab();
-  toast('Registo eliminado.','info');
+  const entry = investEntries[idx];
+  try {
+    await api('DELETE', '/investimentos/'+entry.id);
+    investEntries.splice(idx,1);
+    renderInvestTab();
+    if (document.getElementById('contasTotalCard')) renderContas();
+    toast('Registo eliminado.','info');
+  } catch(e) { toast('Erro: '+e.message,'error'); }
 }
 
 // ── GESTÃO DE UTILIZADORES ────────────────────────────────────────────────────
@@ -2944,7 +3070,7 @@ function renderUserList() {
       <div style="width:36px;height:36px;border-radius:50%;background:${p.color};display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#0d1117;flex-shrink:0">${p.initials}</div>
       <div style="flex:1">
         <div style="font-weight:600;font-size:13px">${p.name}</div>
-        <div style="font-size:11px;color:var(--text-muted)">${p.role} · PIN ${getStoredPin(id) ? 'definido ✓' : 'não definido ainda'}</div>
+        <div style="font-size:11px;color:var(--text-muted)">${p.role} · PIN ${p.pin_hash ? 'definido ✓' : 'não definido ainda'}</div>
       </div>
       ${!p.isAdmin ? `
         <button class="btn btn-danger btn-icon btn-sm" onclick="deleteUser('${id}')" title="Remover utilizador">
@@ -2954,35 +3080,32 @@ function renderUserList() {
   `).join('');
 }
 
-function createUser() {
+async function createUser() {
   const name  = document.getElementById('newUserName').value.trim();
   const role  = document.getElementById('newUserRole').value;
   const color = document.getElementById('newUserColor').value;
   if (!name) return toast('Escreve o nome do utilizador.', 'error');
-
-  // Generate a unique ID from the name
-  const id = name.toLowerCase().replace(/\s+/g,'_').replace(/[^a-z0-9_]/g,'') + '_' + Date.now().toString(36);
   const initials = getInitials(name);
   const isAdmin  = role === 'Administrador';
-
-  PROFILES[id] = { name, initials, role, color, prefix: id, isAdmin };
-  saveProfiles(PROFILES);
-
-  document.getElementById('newUserName').value = '';
-  renderUserList();
-  toast(`Utilizador "${name}" criado! Pode agora entrar e definir o seu PIN.`, 'success');
+  try {
+    const saved = await api('POST', '/profiles', { name, initials, role, color, is_admin: isAdmin });
+    PROFILES[saved.id] = { ...saved, isAdmin: saved.is_admin };
+    document.getElementById('newUserName').value = '';
+    renderUserList();
+    toast(`Utilizador "${name}" criado! Pode agora entrar e definir o seu PIN.`, 'success');
+  } catch(e) { toast('Erro: '+e.message,'error'); }
 }
 
-function deleteUser(id) {
+async function deleteUser(id) {
   const p = PROFILES[id];
   if (!p) return;
   if (!confirm(`Remover o utilizador "${p.name}"?\nTodos os dados deste perfil serão eliminados.`)) return;
-  delete PROFILES[id];
-  // Remove their PIN
-  localStorage.removeItem(`fp_pin_${id}`);
-  saveProfiles(PROFILES);
-  renderUserList();
-  toast(`Utilizador removido.`, 'info');
+  try {
+    await api('DELETE', '/profiles/'+id);
+    delete PROFILES[id];
+    renderUserList();
+    toast('Utilizador removido.', 'info');
+  } catch(e) { toast('Erro: '+e.message,'error'); }
 }
 
 // ── DEFINIÇÕES — CATEGORIAS ───────────────────────────────────────────────────
@@ -3010,7 +3133,15 @@ function renderCatList(tipo) {
   }).join('');
 }
 
-function addCatDespesa() {
+async function syncCategorias() {
+  const cats = [
+    ...CATS_DESPESA.map(nome => ({ nome, tipo:'Despesa', emoji: CAT_ICONS[nome]||'📌' })),
+    ...CATS_RECEITA.map(nome => ({ nome, tipo:'Receita', emoji: CAT_ICONS[nome]||'📌' }))
+  ];
+  await api('POST', '/categorias', cats);
+}
+
+async function addCatDespesa() {
   const emojiEl = document.getElementById('newCatDespesaEmoji');
   const nomeEl  = document.getElementById('newCatDespesaNome');
   const emoji   = (emojiEl.value || '').trim() || '📌';
@@ -3022,13 +3153,13 @@ function addCatDespesa() {
   CAT_ICONS[nome] = emoji;
   emojiEl.value = '';
   nomeEl.value  = '';
-  scheduleSync();
+  try { await syncCategorias(); } catch(e) { toast('Erro ao guardar: '+e.message,'error'); return; }
   renderDefinicoes();
   refreshAllCatDropdowns();
   toast(`Categoria "${nome}" adicionada! 🎉`, 'success');
 }
 
-function addCatReceita() {
+async function addCatReceita() {
   const emojiEl = document.getElementById('newCatReceitaEmoji');
   const nomeEl  = document.getElementById('newCatReceitaNome');
   const emoji   = (emojiEl.value || '').trim() || '📌';
@@ -3040,22 +3171,21 @@ function addCatReceita() {
   CAT_ICONS[nome] = emoji;
   emojiEl.value = '';
   nomeEl.value  = '';
-  scheduleSync();
+  try { await syncCategorias(); } catch(e) { toast('Erro ao guardar: '+e.message,'error'); return; }
   renderDefinicoes();
   refreshAllCatDropdowns();
   toast(`Categoria "${nome}" adicionada! 🎉`, 'success');
 }
 
-function deleteCat(tipo, nome) {
+async function deleteCat(tipo, nome) {
   if (!confirm(`Eliminar a categoria "${nome}"?\nAs transações existentes ficam com "Outros".`)) return;
   if (tipo === 'Despesa') {
     CATS_DESPESA = CATS_DESPESA.filter(c => c !== nome);
   } else {
     CATS_RECEITA = CATS_RECEITA.filter(c => c !== nome);
   }
-  txs = txs.map(t => t.cat === nome ? { ...t, cat: 'Outros' } : t);
   delete CAT_ICONS[nome];
-  scheduleSync();
+  try { await syncCategorias(); } catch(e) { toast('Erro ao guardar: '+e.message,'error'); return; }
   renderDefinicoes();
   refreshAllCatDropdowns();
   toast(`Categoria "${nome}" eliminada.`, 'info');
@@ -3088,6 +3218,12 @@ function refreshAllContaDropdowns() {
   const importConta = document.getElementById('importConta');
   if (importConta) { const cur = importConta.value; fillSelect(importConta, CONTAS, cur || CONTAS[0]); }
 
+  const transfOrigem = document.getElementById('transfOrigem');
+  if (transfOrigem) { const cur = transfOrigem.value; fillSelect(transfOrigem, CONTAS, cur || CONTAS[0]); }
+
+  const transfDestino = document.getElementById('transfDestino');
+  if (transfDestino) { const cur = transfDestino.value; fillSelect(transfDestino, CONTAS, cur || CONTAS[1] || CONTAS[0]); }
+
   const txFilterConta = document.getElementById('txFilterConta');
   if (txFilterConta) {
     const cur = txFilterConta.value;
@@ -3117,8 +3253,14 @@ function storePin(profileId, p) { localStorage.setItem(getPinKey(profileId), p);
 // ── PROFILE SELECTION ─────────────────────────────────────────────────────────
 
 function initAuth() {
-  // Always start at profile selector
-  showProfileScreen();
+  showSyncOverlay('A carregar perfis…');
+  loadProfilesFromAPI().then(() => {
+    hideSyncOverlay();
+    showProfileScreen();
+  }).catch(() => {
+    hideSyncOverlay();
+    toast('Sem ligação ao servidor. Verifica a tua ligação.', 'error');
+  });
 }
 
 function showProfileScreen() {
@@ -3126,7 +3268,6 @@ function showProfileScreen() {
   activeProfile = null;
   clearInactivityTimers();
 
-  // Render profile list dynamically
   const list = document.getElementById('profileList');
   list.innerHTML = Object.entries(PROFILES).map(([id, p]) => `
     <div class="profile-btn" onclick="selectProfile('${id}')">
@@ -3144,11 +3285,9 @@ function showProfileScreen() {
 }
 
 function selectProfile(profileId) {
-  activeProfile = PROFILES[profileId];
-  activeProfile.id = profileId;
+  activeProfile = { ...PROFILES[profileId], id: profileId };
 
-  // Update PIN screen for this profile
-  const stored = getStoredPin(profileId);
+  const stored = activeProfile.pin_hash;
   document.getElementById('profileScreen').classList.add('hidden');
   document.getElementById('pinScreen').classList.remove('hidden');
 
@@ -3175,12 +3314,18 @@ function backToProfiles() {
   showProfileScreen();
 }
 
-function switchProfile() {
-  clearInactivityTimers();
-  // Reset all data
-  txs = []; budgets = {}; saldosIniciais = {}; pprEntries = []; investEntries = [];
+async function switchProfile() {
+  authToken = null;
+  activeProfile = null;
+  txs = []; budgets = {}; saldosIniciais = {}; pprEntries = []; investEntries = []; contasDB = [];
   CATS_DESPESA = [...CATS_DESPESA_DEFAULT];
   CATS_RECEITA = [...CATS_RECEITA_DEFAULT];
+  clearInactivityTimers();
+  showSyncOverlay('A carregar perfis…');
+  try {
+    await loadProfilesFromAPI();
+  } catch(e) {}
+  hideSyncOverlay();
   showProfileScreen();
 }
 
@@ -3236,7 +3381,7 @@ function hidePinError() {
   document.getElementById('pinErrorMsg').classList.remove('visible');
 }
 
-function handlePinComplete() {
+async function handlePinComplete() {
   const profileId = activeProfile.id;
   if (pinMode === 'setup') {
     if (pinSetupStep === 1) {
@@ -3246,9 +3391,13 @@ function handlePinComplete() {
       updateDots();
     } else {
       if (pinBuffer === pinSetupBuf) {
-        storePin(profileId, pinBuffer);
-        toast('PIN criado com sucesso! 🔐', 'success');
-        hidePinScreen();
+        try {
+          const result = await api('POST', '/set-pin', { profile_id: profileId, pin: pinBuffer });
+          authToken = result.token;
+          activeProfile = { ...activeProfile, ...result.profile, isAdmin: result.profile.is_admin };
+          toast('PIN criado com sucesso! 🔐', 'success');
+          hidePinScreen();
+        } catch(e) { showPinError('Erro ao guardar PIN: ' + e.message); }
       } else {
         showPinError('Os PINs não coincidem. Tenta de novo.');
         pinSetupStep = 1; pinSetupBuf = '';
@@ -3257,11 +3406,20 @@ function handlePinComplete() {
       }
     }
   } else {
-    const stored = getStoredPin(profileId);
-    if (pinBuffer === stored) {
+    try {
+      const result = await api('POST', '/login', { profile_id: profileId, pin: pinBuffer });
+      if (result.needs_setup) {
+        // First time — switch to setup mode
+        pinMode = 'setup'; pinSetupStep = 1; pinBuffer = '';
+        document.getElementById('pinSubtitle').textContent = 'Define o teu PIN de 4 dígitos';
+        document.getElementById('pinSetupHint').style.display = 'block';
+        updateDots(); return;
+      }
+      authToken = result.token;
+      activeProfile = { ...activeProfile, ...result.profile, isAdmin: result.profile.is_admin };
       hidePinError();
       hidePinScreen();
-    } else {
+    } catch(e) {
       showPinError('PIN incorreto. Tenta novamente.');
     }
   }
@@ -3342,13 +3500,11 @@ document.addEventListener('keydown', e => {
 async function appInit() {
   showSyncOverlay('A carregar os teus dados…');
   try {
-    const raw = await gsRead();
-    parseSheetData(raw);
+    await loadAllData();
   } catch(e) {
-    toast('Sem ligação à cloud — a trabalhar offline temporariamente.', 'info');
+    toast('Sem ligação ao servidor — alguns dados podem estar desatualizados.', 'info');
   }
   hideSyncOverlay();
-  // Refresh all category and account dropdowns with loaded/custom data
   refreshAllCatDropdowns();
   refreshAllContaDropdowns();
   fillSelect(document.getElementById('movCat'), catsForTipo(activeTipo));
