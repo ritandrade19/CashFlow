@@ -1,4 +1,4 @@
-const CACHE = 'cashflow-v1';
+const CACHE = 'cashflow-v3';
 const ASSETS = [
   '/CashFlow/',
   '/CashFlow/index.html'
@@ -21,12 +21,18 @@ self.addEventListener('activate', e => {
 });
 
 self.addEventListener('fetch', e => {
-  // For Google Sheets API calls — always go to network
-  if (e.request.url.includes('script.google.com')) {
-    e.respondWith(fetch(e.request).catch(() => new Response('offline', { status: 503 })));
-    return;
+  const url = e.request.url;
+
+  // NUNCA interceptar pedidos à API ou externos — deixa passar sempre
+  if (url.includes('onrender.com') ||
+      url.includes('supabase.co') ||
+      url.includes('googleapis.com') ||
+      url.includes('script.google.com') ||
+      !url.includes('github.io')) {
+    return; // não faz nada, o browser trata normalmente
   }
-  // For everything else — cache first, network fallback
+
+  // Para ficheiros locais — cache first
   e.respondWith(
     caches.match(e.request).then(cached => {
       if (cached) return cached;
