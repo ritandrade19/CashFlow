@@ -1710,7 +1710,7 @@ const SECTION_TITLES = {
   definicoes:'Definições'
 };
 
-function goTo(name) {
+async function goTo(name) {
   document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
   document.querySelectorAll('.nav-item[data-section]').forEach(n=>n.classList.remove('active'));
   document.getElementById('section-'+name).classList.add('active');
@@ -1718,6 +1718,14 @@ function goTo(name) {
   document.getElementById('topbarTitle').textContent = SECTION_TITLES[name];
   renderTopbarMeta(name);
   renderTopbarActions(name);
+
+  // Reload data from API on every navigation
+  try {
+    await loadAllData();
+    refreshAllCatDropdowns();
+    refreshAllContaDropdowns();
+  } catch(e) { console.warn('Erro ao recarregar dados:', e.message); }
+
   if (name==='dashboard') renderDashboard();
   if (name==='transacoes') renderTransacoes();
   if (name==='analise') renderAnalise();
@@ -1738,14 +1746,45 @@ function renderTopbarMeta(name) {
   const profile = activeProfile ? ` · ${activeProfile.name}` : '';
   el.textContent = name==='dashboard' ? now + profile : '';
 }
+
 function renderTopbarActions(name) {
   const el = document.getElementById('topbarActions');
+  const refreshBtn = `<button class="btn btn-ghost btn-sm" onclick="refreshData()" title="Atualizar dados">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+  </button>`;
   if (name==='transacoes') {
     el.innerHTML = `<button class="btn btn-primary btn-sm" onclick="goTo('registar')">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
       Nova transação
-    </button>`;
-  } else { el.innerHTML = ''; }
+    </button>${refreshBtn}`;
+  } else {
+    el.innerHTML = refreshBtn;
+  }
+}
+
+async function refreshData() {
+  try {
+    showSyncOverlay('A atualizar…');
+    await loadAllData();
+    refreshAllCatDropdowns();
+    refreshAllContaDropdowns();
+    hideSyncOverlay();
+    // Re-render current section
+    const active = document.querySelector('.section.active');
+    if (active) {
+      const name = active.id.replace('section-','');
+      if (name==='dashboard') renderDashboard();
+      if (name==='transacoes') renderTransacoes();
+      if (name==='analise') renderAnalise();
+      if (name==='orcamentos') renderOrcamentos();
+      if (name==='ppr') renderPPR();
+      if (name==='contas') renderContas();
+    }
+    toast('Dados atualizados! ✅', 'success');
+  } catch(e) {
+    hideSyncOverlay();
+    toast('Erro ao atualizar: ' + e.message, 'error');
+  }
 }
 
 // ── CATEGORIES HELPER ─────────────────────────────────────────────────────────
@@ -3519,7 +3558,7 @@ async function appInit() {
   try {
     await loadAllData();
   } catch(e) {
-    toast('Sem ligação ao servidor — alguns dados podem estar desatualizados.', 'info');
+    console.warn('Aviso ao carregar dados:', e.message);
   }
   hideSyncOverlay();
   refreshAllCatDropdowns();
